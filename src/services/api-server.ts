@@ -115,6 +115,36 @@ class ApiServer {
       res.json(stats);
     });
 
+    // Network diagnostics - test connection to Facebook API
+    this.app.get('/diagnostics/network', async (_req: Request, res: Response) => {
+      const axios = require('axios');
+      const startTime = Date.now();
+
+      try {
+        // Simple GET request to Facebook API (doesn't require token)
+        await axios.get('https://graph.facebook.com/v21.0/', {
+          timeout: 10000,
+        });
+
+        const duration = Date.now() - startTime;
+        res.json({
+          success: true,
+          message: 'Facebook API is reachable',
+          duration_ms: duration,
+          endpoint: 'https://graph.facebook.com/v21.0/',
+        });
+      } catch (error: any) {
+        const duration = Date.now() - startTime;
+        res.status(500).json({
+          success: false,
+          error: error.message,
+          error_code: error.code,
+          duration_ms: duration,
+          endpoint: 'https://graph.facebook.com/v21.0/',
+        });
+      }
+    });
+
     // Reset circuit breaker for a page
     this.app.post('/circuit-breaker/reset/:pageId', (req: Request, res: Response) => {
       const pageId = parseInt(req.params.pageId, 10);

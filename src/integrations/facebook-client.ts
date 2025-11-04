@@ -32,9 +32,10 @@ class FacebookClient {
     });
 
     // Create axios instance with agent
+    // NOTE: Increased timeout from 30s to 60s to prevent ETIMEDOUT errors
     this.axiosInstance = axios.create({
       httpsAgent: this.agent,
-      timeout: 30000,
+      timeout: 60000, // Increased from 30000
       headers: {
         'Connection': 'keep-alive',
         'Content-Type': 'application/json',
