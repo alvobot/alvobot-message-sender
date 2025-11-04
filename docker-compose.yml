@@ -9,6 +9,8 @@ services:
       dockerfile: Dockerfile
     container_name: newar-run-processor
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       SERVICE_TYPE: run-processor
       NODE_ENV: production
@@ -51,6 +53,8 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       SERVICE_TYPE: message-worker
       NODE_ENV: production
@@ -112,6 +116,8 @@ services:
     restart: unless-stopped
     ports:
       - "3100:3000"  # External port 3100 to avoid conflicts
+    env_file:
+      - .env
     environment:
       SERVICE_TYPE: api
       NODE_ENV: production
