@@ -154,6 +154,8 @@ services:
     depends_on:
       - redis
       - postgres
+    ports:
+      - "3100:3000"  # Access Bull Board at http://your-server:3100/admin/queues
     env_file:
       - .env
     environment:
