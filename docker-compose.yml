@@ -114,8 +114,6 @@ services:
       dockerfile: Dockerfile
     container_name: newar-api
     restart: unless-stopped
-    ports:
-      - "3100:3000"  # External port 3100 to avoid conflicts
     env_file:
       - .env
     environment:
