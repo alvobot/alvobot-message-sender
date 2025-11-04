@@ -38,8 +38,17 @@ class ApiServer {
   }
 
   private setupRoutes() {
-    // Health check
-    this.app.get('/health', async (_req: Request, res: Response) => {
+    // Basic health check (always returns 200 if server is running)
+    this.app.get('/health', (_req: Request, res: Response) => {
+      res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        service: env.serviceType,
+      });
+    });
+
+    // Detailed health check (includes database connection test)
+    this.app.get('/health/detailed', async (_req: Request, res: Response) => {
       try {
         // Test PostgreSQL connection
         await testPostgresConnection();
@@ -48,12 +57,14 @@ class ApiServer {
           status: 'healthy',
           timestamp: new Date().toISOString(),
           service: env.serviceType,
+          database: 'connected',
         });
       } catch (error: any) {
         res.status(503).json({
           status: 'unhealthy',
           error: error.message,
           timestamp: new Date().toISOString(),
+          database: 'disconnected',
         });
       }
     });
