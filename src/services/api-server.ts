@@ -40,11 +40,16 @@ class ApiServer {
   private setupRoutes() {
     // Basic health check (always returns 200 if server is running)
     this.app.get('/health', (_req: Request, res: Response) => {
-      res.json({
+      res.status(200).json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
         service: env.serviceType,
       });
+    });
+
+    // Simple OK endpoint for platforms that prefer plain text
+    this.app.get('/healthz', (_req: Request, res: Response) => {
+      res.status(200).send('OK');
     });
 
     // Detailed health check (includes database connection test)
