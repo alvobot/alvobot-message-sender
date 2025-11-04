@@ -121,17 +121,28 @@ class ApiServer {
       const results: any = {};
 
       // Test Facebook API
+      const fbStart = Date.now();
       try {
-        const start = Date.now();
         await axios.get('https://graph.facebook.com/v21.0/', { timeout: 10000 });
-        results.facebook = { success: true, duration_ms: Date.now() - start };
+        results.facebook = { success: true, duration_ms: Date.now() - fbStart };
       } catch (error: any) {
-        results.facebook = {
-          success: false,
-          error: error.message,
-          error_code: error.code,
-          duration_ms: Date.now() - Date.now(),
-        };
+        const duration = Date.now() - fbStart;
+        // Facebook returns error 100 for invalid requests, but that means connection works!
+        if (error.response?.status === 400 && error.response?.data?.error?.code === 100) {
+          results.facebook = {
+            success: true,
+            duration_ms: duration,
+            note: 'Connection successful (received expected Facebook API error)',
+          };
+        } else {
+          results.facebook = {
+            success: false,
+            error: error.message,
+            error_code: error.code,
+            duration_ms: duration,
+            http_status: error.response?.status,
+          };
+        }
       }
 
       // Test Google (general internet connectivity)
