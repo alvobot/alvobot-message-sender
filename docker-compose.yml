@@ -152,8 +152,8 @@ services:
 # ===========================================
 networks:
   easypanel_default:
-    external: true
     name: easypanel_default
+    driver: bridge
 
-# Note: This application connects to the EasyPanel default network
-# where Redis (cast_redis) and PostgreSQL (cast_postgres) services are running
+# Note: Creates a bridge network that EasyPanel services can join
+# Redis and PostgreSQL services must be configured to use this same network
