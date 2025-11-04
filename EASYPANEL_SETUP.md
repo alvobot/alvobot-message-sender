@@ -1,55 +1,66 @@
 # EasyPanel Deployment Guide
 
-## Important: Network Configuration
+## Network Configuration
 
-This application uses `network_mode: host` which means containers share the host's network. This has important implications for your environment variables.
+This application uses standard Docker networking, allowing containers to communicate using Docker service names (like `cast_redis`, `cast_postgres`).
 
 ## Required Environment Variables
 
-### ⚠️ Redis Configuration
+### Redis Configuration
 
-With `network_mode: host`, **you cannot use Docker service names like `cast_redis`**.
-
-You need to use one of these options:
-
-1. **If Redis is on the same machine**: Use `localhost` or `127.0.0.1`
-   ```
-   REDIS_HOST=localhost
-   ```
-
-2. **If Redis is in another EasyPanel service**: Use the actual hostname or IP
-   ```
-   REDIS_HOST=<redis-ip-or-hostname>
-   ```
-
-3. **If you want to use Docker service names**: Remove `network_mode: host` and configure proper Docker networking
-
-### ⚠️ PostgreSQL Configuration
-
-Same rules apply for PostgreSQL:
-
+EasyPanel provides a Redis connection URL like:
 ```
-POSTGRES_HOST=localhost  # or the actual IP/hostname
+redis://default:48612a2f97fcf9e63ef4@cast_redis:6379
 ```
 
-### ⚠️ API Port
+Extract these values:
+- **Hostname**: `cast_redis` (the part after `@` and before `:`)
+- **Password**: `48612a2f97fcf9e63ef4` (the part between `:` and `@`)
+- **Port**: `6379` (the part after the last `:`)
 
-With `network_mode: host`, the API service will try to bind to port 3000 on the host machine.
+Configure in your .env:
+```bash
+REDIS_HOST=cast_redis
+REDIS_PORT=6379
+REDIS_PASSWORD=48612a2f97fcf9e63ef4
+REDIS_DB=2
+```
 
-- Make sure port 3000 is available on the host
-- Or change `API_PORT` to a different port in your .env file
+### PostgreSQL Configuration
+
+EasyPanel provides PostgreSQL connection details. Use the EasyPanel service name:
+
+```bash
+POSTGRES_HOST=cast_postgres
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_postgres_password
+POSTGRES_DB=n8n-cast
+POSTGRES_SCHEMA=message_logs
+```
+
+### API Port
+
+The API is exposed on port **3100** externally (mapped from internal port 3000):
+
+```bash
+API_PORT=3000  # Internal port - keep as 3000
+API_ENABLE_BULL_BOARD=true
+```
+
+Access the API at: `http://your-server:3100`
 
 ## Complete .env Configuration for EasyPanel
 
 ```bash
-# Redis - Use localhost if Redis runs on same machine
-REDIS_HOST=localhost
+# Redis - Use EasyPanel's Docker service name
+REDIS_HOST=cast_redis
 REDIS_PORT=6379
-REDIS_PASSWORD=your_redis_password
+REDIS_PASSWORD=48612a2f97fcf9e63ef4
 REDIS_DB=2
 
-# PostgreSQL - Use localhost if Postgres runs on same machine  
-POSTGRES_HOST=localhost
+# PostgreSQL - Use EasyPanel's Docker service name
+POSTGRES_HOST=cast_postgres
 POSTGRES_PORT=5432
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your_postgres_password
@@ -88,14 +99,22 @@ API_ENABLE_BULL_BOARD=true
 
 ### Error: "getaddrinfo EAI_AGAIN cast_redis"
 
-This means the Redis hostname cannot be resolved. Change `REDIS_HOST` to `localhost` or the actual IP address.
+This means the Redis hostname cannot be resolved. Make sure:
+- `REDIS_HOST=cast_redis` (use the exact service name from EasyPanel)
+- The Redis service is running in EasyPanel
+- Both services are in the same Docker network (EasyPanel handles this automatically)
 
 ### Error: "listen EADDRINUSE: address already in use :::3000"
 
-Port 3000 is already in use on the host. Either:
-- Stop the service using port 3000, or
-- Change `API_PORT` to a different port (e.g., 3100)
+Port 3000 is already in use. The API should use the port mapping `3100:3000` to expose on port 3100 externally.
 
 ### Environment variables not loading
 
-Make sure you have a `.env` file in the project root with all required variables set.
+Make sure you configure all environment variables in the EasyPanel interface:
+1. Go to your service settings
+2. Add all required variables listed above
+3. Redeploy the service
+
+### Containers can't connect to each other
+
+Make sure all your EasyPanel services (Redis, PostgreSQL, this app) are using the default EasyPanel network or create a shared network.

@@ -37,7 +37,6 @@ services:
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS}
       LOG_LEVEL: ${LOG_LEVEL}
 
-    network_mode: host
     logging:
       driver: "json-file"
       options:
@@ -97,7 +96,6 @@ services:
 
     deploy:
       replicas: 2  # 2 workers × 50 concurrency = 100 jobs in parallel
-    network_mode: host
     logging:
       driver: "json-file"
       options:
@@ -139,7 +137,8 @@ services:
       API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
       LOG_LEVEL: ${LOG_LEVEL}
 
-    network_mode: host
+    ports:
+      - "3100:3000"
     logging:
       driver: "json-file"
       options:
