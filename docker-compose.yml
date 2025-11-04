@@ -14,6 +14,8 @@ services:
       retries: 5
     volumes:
       - redis_data:/data
+    networks:
+      - app_network
 
   # ===========================================
   # POSTGRESQL SERVICE
@@ -33,6 +35,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-message_sender}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
 
   # ===========================================
   # RUN PROCESSOR SERVICE
@@ -75,6 +79,8 @@ services:
       # Configuration
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS}
       LOG_LEVEL: ${LOG_LEVEL}
+    networks:
+      - app_network
 
   # ===========================================
   # MESSAGE WORKER SERVICE
@@ -131,7 +137,8 @@ services:
       CIRCUIT_BREAKER_ENABLED: ${CIRCUIT_BREAKER_ENABLED}
       CIRCUIT_BREAKER_THRESHOLD: ${CIRCUIT_BREAKER_THRESHOLD}
       CIRCUIT_BREAKER_TIMEOUT_MS: ${CIRCUIT_BREAKER_TIMEOUT_MS}
-
+    networks:
+      - app_network
     deploy:
       replicas: 2  # 2 workers × 50 concurrency = 100 jobs in parallel
 
@@ -179,6 +186,8 @@ services:
       API_PORT: ${API_PORT}
       API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
       LOG_LEVEL: ${LOG_LEVEL}
+    networks:
+      - app_network
 
 
 # ===========================================
@@ -193,6 +202,9 @@ volumes:
 # ===========================================
 # NETWORKING
 # ===========================================
-# Using Docker Compose default networking
-# All services are automatically on the same network and can communicate by service name
-# Use REDIS_HOST=redis and POSTGRES_HOST=postgres in your .env file
+# Create a custom bridge network to ensure:
+# 1. Services can communicate with each other by name (redis, postgres, etc)
+# 2. Services have internet access for external APIs (Facebook Graph API)
+networks:
+  app_network:
+    driver: bridge
