@@ -36,6 +36,8 @@ services:
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS}
       LOG_LEVEL: ${LOG_LEVEL}
 
+    networks:
+      - easypanel_default
     logging:
       driver: "json-file"
       options:
@@ -95,6 +97,8 @@ services:
 
     deploy:
       replicas: 2  # 2 workers × 50 concurrency = 100 jobs in parallel
+    networks:
+      - easypanel_default
     logging:
       driver: "json-file"
       options:
@@ -135,11 +139,21 @@ services:
       API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
       LOG_LEVEL: ${LOG_LEVEL}
 
+    networks:
+      - easypanel_default
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
-# Note: Redis and PostgreSQL should be accessible from the containers
-# Make sure they are on the same Docker network or accessible via host networking
+# ===========================================
+# NETWORKS
+# ===========================================
+networks:
+  easypanel_default:
+    external: true
+    name: easypanel_default
+
+# Note: This application connects to the EasyPanel default network
+# where Redis (cast_redis) and PostgreSQL (cast_postgres) services are running
