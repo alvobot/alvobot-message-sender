@@ -1,0 +1,295 @@
+// Run Processor Service
+// Polls Supabase for pending runs and enqueues messages in BullMQ
+
+import supabase from '../database/supabase';
+import messageQueue from '../queues/message-queue';
+import logger from '../utils/logger';
+import env from '../config/env';
+import { assembleMessages } from '../utils/flow-processor';
+import { MessageRun, MessageFlow, MetaPage, MetaSubscriber } from '../types';
+import { replacePlaceholders } from '../utils/helpers';
+
+class RunProcessor {
+  private pollIntervalMs: number;
+  private isRunning = false;
+  private pollTimer: NodeJS.Timeout | null = null;
+
+  constructor() {
+    this.pollIntervalMs = env.pollIntervalMs;
+  }
+
+  async start() {
+    if (this.isRunning) {
+      logger.warn('Run processor already running');
+      return;
+    }
+
+    this.isRunning = true;
+    logger.info('🚀 Run Processor started', {
+      poll_interval_ms: this.pollIntervalMs,
+    });
+
+    // Start polling
+    this.poll();
+  }
+
+  async stop() {
+    this.isRunning = false;
+
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+
+    logger.info('🛑 Run Processor stopped');
+  }
+
+  private async poll() {
+    if (!this.isRunning) return;
+
+    try {
+      await this.processPendingRuns();
+    } catch (error: any) {
+      logger.error('Error in poll cycle', { error: error.message });
+    }
+
+    // Schedule next poll
+    this.pollTimer = setTimeout(() => this.poll(), this.pollIntervalMs);
+  }
+
+  private async processPendingRuns() {
+    const now = new Date().toISOString();
+
+    // Fetch pending runs from Supabase
+    const { data: runs, error } = await supabase
+      .from('message_runs')
+      .select('*')
+      .in('status', ['pending', 'running'])
+      .or(`next_step_at.is.null,next_step_at.lte.${now}`)
+      .limit(10); // Process max 10 runs per cycle
+
+    if (error) {
+      logger.error('Failed to fetch pending runs', { error: error.message });
+      return;
+    }
+
+    if (!runs || runs.length === 0) {
+      logger.debug('No pending runs');
+      return;
+    }
+
+    logger.info(`Found ${runs.length} pending runs to process`);
+
+    // Process each run
+    for (const run of runs) {
+      try {
+        await this.processRun(run as MessageRun);
+      } catch (error: any) {
+        logger.error('Failed to process run', {
+          run_id: run.id,
+          error: error.message,
+        });
+
+        // Update run status to failed
+        await supabase
+          .from('message_runs')
+          .update({
+            status: 'failed',
+            error_summary: { error: error.message },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', run.id);
+      }
+    }
+  }
+
+  private async processRun(run: MessageRun) {
+    logger.info(`Processing run ${run.id}`, {
+      run_id: run.id,
+      flow_id: run.flow_id,
+      status: run.status,
+      next_step_id: run.next_step_id,
+    });
+
+    // Fetch flow
+    const { data: flow, error: flowError } = await supabase
+      .from('message_flows')
+      .select('*')
+      .eq('id', run.flow_id)
+      .single();
+
+    if (flowError || !flow) {
+      throw new Error(`Failed to fetch flow: ${flowError?.message || 'Not found'}`);
+    }
+
+    // Process flow and assemble messages
+    const result = assembleMessages(flow.flow, run.next_step_id);
+
+    logger.info(`Flow processing complete`, {
+      run_id: run.id,
+      messages_count: result.messages.length,
+      is_complete: result.isComplete,
+      next_step_id: result.nextStepId,
+    });
+
+    // Transform page_ids array
+    let pageIds: number[] = [];
+    if (Array.isArray(run.page_ids)) {
+      pageIds = run.page_ids;
+    } else if (typeof run.page_ids === 'string') {
+      try {
+        pageIds = JSON.parse(run.page_ids);
+      } catch {
+        pageIds = [Number(run.page_ids)];
+      }
+    }
+
+    // Enqueue messages for each page
+    for (const pageId of pageIds) {
+      await this.enqueueMessagesForPage(run, pageId, flow, result.messages);
+    }
+
+    // Update run status
+    const updateData: any = {
+      status: result.isComplete ? 'completed' : 'running',
+      next_step_id: result.nextStepId,
+      next_step_at: result.nextStepAt,
+      last_step_id: result.lastStepId,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (result.isComplete) {
+      updateData.completed_at = new Date().toISOString();
+    }
+
+    await supabase.from('message_runs').update(updateData).eq('id', run.id);
+
+    logger.info(`Run ${run.id} updated`, {
+      status: updateData.status,
+      next_step_at: updateData.next_step_at,
+    });
+  }
+
+  private async enqueueMessagesForPage(
+    run: MessageRun,
+    pageId: number,
+    flow: MessageFlow,
+    messages: any[]
+  ) {
+    // Fetch page data
+    const { data: page, error: pageError } = await supabase
+      .from('meta_pages')
+      .select('*')
+      .eq('page_id', pageId)
+      .single();
+
+    if (pageError || !page) {
+      logger.error('Failed to fetch page', {
+        page_id: pageId,
+        error: pageError?.message,
+      });
+      return;
+    }
+
+    if (!page.is_active) {
+      logger.warn('Page is inactive, skipping', { page_id: pageId });
+      return;
+    }
+
+    // Fetch active subscribers for this page
+    const { data: subscribers, error: subscribersError } = await supabase
+      .from('meta_subscribers')
+      .select('user_id')
+      .eq('page_id', pageId)
+      .eq('is_active', true);
+
+    if (subscribersError) {
+      logger.error('Failed to fetch subscribers', {
+        page_id: pageId,
+        error: subscribersError.message,
+      });
+      return;
+    }
+
+    if (!subscribers || subscribers.length === 0) {
+      logger.warn('No active subscribers for page', { page_id: pageId });
+      return;
+    }
+
+    logger.info(`Enqueuing messages for page ${pageId}`, {
+      subscribers_count: subscribers.length,
+      messages_count: messages.length,
+      total_jobs: subscribers.length * messages.length,
+    });
+
+    // Enqueue a job for each subscriber × message combination
+    const jobs: Array<{ name: string; data: any }> = [];
+
+    for (const subscriber of subscribers) {
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+
+        // Replace placeholders in message
+        let messageWithReplacements = JSON.parse(JSON.stringify(message));
+        messageWithReplacements = this.replacePlaceholdersInMessage(
+          messageWithReplacements,
+          { USER_ID: subscriber.user_id }
+        );
+
+        jobs.push({
+          name: `run_${run.id}_page_${pageId}_user_${subscriber.user_id}_msg_${i}`,
+          data: {
+            runId: run.id,
+            flowId: flow.id,
+            nodeId: 'unknown', // TODO: track node ID
+            pageId: pageId,
+            userId: subscriber.user_id,
+            pageAccessToken: page.access_token,
+            message: messageWithReplacements,
+          },
+        });
+      }
+    }
+
+    // Bulk add jobs to queue
+    const startTime = Date.now();
+    await messageQueue.addBulk(jobs);
+    const duration = Date.now() - startTime;
+
+    logger.info(`✅ Jobs enqueued successfully`, {
+      page_id: pageId,
+      jobs_count: jobs.length,
+      duration_ms: duration,
+    });
+  }
+
+  private replacePlaceholdersInMessage(message: any, replacements: Record<string, string>): any {
+    const messageStr = JSON.stringify(message);
+    const replaced = replacePlaceholders(messageStr, replacements);
+    return JSON.parse(replaced);
+  }
+}
+
+// Export singleton
+export const runProcessor = new RunProcessor();
+
+// Auto-start if this is the entry point
+if (env.serviceType === 'run-processor') {
+  runProcessor.start().catch((error) => {
+    logger.error('Failed to start run processor', { error: error.message });
+    process.exit(1);
+  });
+
+  // Graceful shutdown
+  process.on('SIGTERM', async () => {
+    await runProcessor.stop();
+    process.exit(0);
+  });
+
+  process.on('SIGINT', async () => {
+    await runProcessor.stop();
+    process.exit(0);
+  });
+}
+
+export default runProcessor;

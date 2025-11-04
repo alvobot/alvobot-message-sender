@@ -1,0 +1,159 @@
+version: '3.8'
+
+services:
+  # ===========================================
+  # RUN PROCESSOR SERVICE
+  # Polls Supabase for pending runs and enqueues messages
+  # ===========================================
+  run-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: newar-run-processor
+    restart: unless-stopped
+    environment:
+      SERVICE_TYPE: run-processor
+      NODE_ENV: production
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+
+      # PostgreSQL
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_SCHEMA: ${POSTGRES_SCHEMA}
+
+      # Supabase
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+      # Configuration
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS}
+      LOG_LEVEL: ${LOG_LEVEL}
+
+    networks:
+      - easypanel_default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================
+  # MESSAGE WORKER SERVICE
+  # Consumes queue and sends messages to Facebook
+  # ===========================================
+  message-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVICE_TYPE: message-worker
+      NODE_ENV: production
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+
+      # PostgreSQL
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_SCHEMA: ${POSTGRES_SCHEMA}
+
+      # Supabase
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+      # Worker Configuration
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY}
+      MAX_SOCKETS: ${MAX_SOCKETS}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_BATCH_SIZE: ${LOG_BATCH_SIZE}
+      LOG_BATCH_INTERVAL_MS: ${LOG_BATCH_INTERVAL_MS}
+
+      # Rate Limiting
+      RATE_LIMIT_MAX_JOBS_PER_SECOND: ${RATE_LIMIT_MAX_JOBS_PER_SECOND}
+      RATE_LIMIT_PER_PAGE: ${RATE_LIMIT_PER_PAGE}
+
+      # Circuit Breaker
+      CIRCUIT_BREAKER_ENABLED: ${CIRCUIT_BREAKER_ENABLED}
+      CIRCUIT_BREAKER_THRESHOLD: ${CIRCUIT_BREAKER_THRESHOLD}
+      CIRCUIT_BREAKER_TIMEOUT_MS: ${CIRCUIT_BREAKER_TIMEOUT_MS}
+
+    deploy:
+      replicas: 2  # 2 workers × 50 concurrency = 100 jobs in parallel
+    networks:
+      - easypanel_default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================
+  # API SERVICE
+  # Bull Board UI + Health checks + Metrics
+  # ===========================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: newar-api
+    restart: unless-stopped
+    ports:
+      - "3100:3000"  # External port 3100 to avoid conflicts
+    environment:
+      SERVICE_TYPE: api
+      NODE_ENV: production
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+
+      # PostgreSQL
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_SCHEMA: ${POSTGRES_SCHEMA}
+
+      # API Configuration
+      API_PORT: ${API_PORT}
+      API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
+      LOG_LEVEL: ${LOG_LEVEL}
+
+    networks:
+      - easypanel_default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ===========================================
+# NETWORKS
+# ===========================================
+networks:
+  easypanel_default:
+    external: true  # Uses existing EasyPanel network
+
+# Note: Redis and PostgreSQL are already running in EasyPanel
+# This compose file only creates the application containers
+# and connects them to the existing infrastructure
