@@ -36,8 +36,6 @@ services:
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS}
       LOG_LEVEL: ${LOG_LEVEL}
 
-    networks:
-      - easypanel_default
     logging:
       driver: "json-file"
       options:
@@ -97,8 +95,6 @@ services:
 
     deploy:
       replicas: 2  # 2 workers × 50 concurrency = 100 jobs in parallel
-    networks:
-      - easypanel_default
     logging:
       driver: "json-file"
       options:
@@ -139,8 +135,6 @@ services:
       API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
       LOG_LEVEL: ${LOG_LEVEL}
 
-    networks:
-      - easypanel_default
     logging:
       driver: "json-file"
       options:
@@ -148,12 +142,9 @@ services:
         max-file: "3"
 
 # ===========================================
-# NETWORKS
+# NETWORKING NOTE
 # ===========================================
-networks:
-  easypanel_default:
-    name: easypanel_default
-    driver: bridge
-
-# Note: Creates a bridge network that EasyPanel services can join
-# Redis and PostgreSQL services must be configured to use this same network
+# Using Docker Compose default networking
+# All services in this compose file will be on the same network automatically
+# To connect to external services (Redis, PostgreSQL), they must be on the same Docker network
+# In EasyPanel, configure services to use the project's default network
