@@ -110,20 +110,23 @@ class FacebookClient {
       const fbError = axiosError.response?.data?.error;
 
       if (fbError) {
-        logger.debug('Facebook API error', {
+        logger.warn('Facebook API error', {
           recipient_id: recipientId,
           error_code: fbError.code,
           error_message: fbError.message,
           error_type: fbError.type,
+          error_subcode: fbError.error_subcode,
+          fbtrace_id: fbError.fbtrace_id,
           duration_ms: duration,
+          http_status: axiosError.response?.status,
         });
 
         return {
           success: false,
           error: {
             code: fbError.code?.toString() || 'UNKNOWN',
-            message: fbError.message,
-            type: fbError.type,
+            message: fbError.message || 'Unknown error',
+            type: fbError.type || 'UnknownError',
           },
           stats: {
             duration_ms: duration,
@@ -138,7 +141,9 @@ class FacebookClient {
       logger.error('Network error sending message', {
         recipient_id: recipientId,
         error: error.message,
+        error_code: error.code,
         duration_ms: duration,
+        http_status: axiosError.response?.status,
       });
 
       return {

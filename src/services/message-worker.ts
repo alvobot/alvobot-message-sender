@@ -147,7 +147,15 @@ class MessageWorkerService {
         });
       } else {
         // Retry other errors
-        throw new Error(`Facebook API error: ${result.error.message}`);
+        logger.warn('Retrying job due to error', {
+          job_id: job.id,
+          page_id: pageId,
+          user_id: userId,
+          error_code: result.error.code,
+          error_message: result.error.message,
+          error_type: result.error.type,
+        });
+        throw new Error(`Facebook API error: ${result.error.code} - ${result.error.message}`);
       }
     } else if (result.success) {
       // Record circuit breaker success
