@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ===========================================
   # RUN PROCESSOR SERVICE
@@ -37,8 +35,7 @@ services:
       POLL_INTERVAL_MS: ${POLL_INTERVAL_MS}
       LOG_LEVEL: ${LOG_LEVEL}
 
-    networks:
-      - easypanel_default
+    network_mode: host
     logging:
       driver: "json-file"
       options:
@@ -96,8 +93,7 @@ services:
 
     deploy:
       replicas: 2  # 2 workers × 50 concurrency = 100 jobs in parallel
-    networks:
-      - easypanel_default
+    network_mode: host
     logging:
       driver: "json-file"
       options:
@@ -139,21 +135,12 @@ services:
       API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
       LOG_LEVEL: ${LOG_LEVEL}
 
-    networks:
-      - easypanel_default
+    network_mode: host
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
-# ===========================================
-# NETWORKS
-# ===========================================
-networks:
-  easypanel_default:
-    external: true  # Uses existing EasyPanel network
-
-# Note: Redis and PostgreSQL are already running in EasyPanel
-# This compose file only creates the application containers
-# and connects them to the existing infrastructure
+# Note: Redis and PostgreSQL should be accessible from the containers
+# Make sure they are on the same Docker network or accessible via host networking
