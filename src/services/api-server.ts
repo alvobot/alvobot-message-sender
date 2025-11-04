@@ -115,34 +115,58 @@ class ApiServer {
       res.json(stats);
     });
 
-    // Network diagnostics - test connection to Facebook API
+    // Network diagnostics - test connection to multiple endpoints
     this.app.get('/diagnostics/network', async (_req: Request, res: Response) => {
       const axios = require('axios');
-      const startTime = Date.now();
+      const results: any = {};
 
+      // Test Facebook API
       try {
-        // Simple GET request to Facebook API (doesn't require token)
-        await axios.get('https://graph.facebook.com/v21.0/', {
-          timeout: 10000,
-        });
-
-        const duration = Date.now() - startTime;
-        res.json({
-          success: true,
-          message: 'Facebook API is reachable',
-          duration_ms: duration,
-          endpoint: 'https://graph.facebook.com/v21.0/',
-        });
+        const start = Date.now();
+        await axios.get('https://graph.facebook.com/v21.0/', { timeout: 10000 });
+        results.facebook = { success: true, duration_ms: Date.now() - start };
       } catch (error: any) {
-        const duration = Date.now() - startTime;
-        res.status(500).json({
+        results.facebook = {
           success: false,
           error: error.message,
           error_code: error.code,
-          duration_ms: duration,
-          endpoint: 'https://graph.facebook.com/v21.0/',
-        });
+          duration_ms: Date.now() - Date.now(),
+        };
       }
+
+      // Test Google (general internet connectivity)
+      try {
+        const start = Date.now();
+        await axios.get('https://www.google.com/', { timeout: 10000 });
+        results.google = { success: true, duration_ms: Date.now() - start };
+      } catch (error: any) {
+        results.google = {
+          success: false,
+          error: error.message,
+          error_code: error.code,
+        };
+      }
+
+      // Test Supabase (if configured)
+      if (env.supabase?.url) {
+        try {
+          const start = Date.now();
+          await axios.get(env.supabase.url + '/rest/v1/', {
+            timeout: 10000,
+            headers: { apikey: env.supabase.serviceRoleKey },
+          });
+          results.supabase = { success: true, duration_ms: Date.now() - start };
+        } catch (error: any) {
+          results.supabase = {
+            success: false,
+            error: error.message,
+            error_code: error.code,
+          };
+        }
+      }
+
+      const allSuccess = Object.values(results).every((r: any) => r.success);
+      res.status(allSuccess ? 200 : 500).json(results);
     });
 
     // Reset circuit breaker for a page
