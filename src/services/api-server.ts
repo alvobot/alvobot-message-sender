@@ -28,7 +28,7 @@ class ApiServer {
     this.app.use(express.json());
 
     // Request logging
-    this.app.use((req, res, next) => {
+    this.app.use((req, _res, next) => {
       logger.debug('API request', {
         method: req.method,
         path: req.path,
@@ -39,7 +39,7 @@ class ApiServer {
 
   private setupRoutes() {
     // Health check
-    this.app.get('/health', async (req: Request, res: Response) => {
+    this.app.get('/health', async (_req: Request, res: Response) => {
       try {
         // Test PostgreSQL connection
         await testPostgresConnection();
@@ -59,7 +59,7 @@ class ApiServer {
     });
 
     // Queue stats
-    this.app.get('/stats/queue', async (req: Request, res: Response) => {
+    this.app.get('/stats/queue', async (_req: Request, res: Response) => {
       try {
         const counts = await messageQueue.getJobCounts();
         const metrics = await messageQueue.getMetrics('completed', 0, Date.now());
@@ -77,13 +77,13 @@ class ApiServer {
     });
 
     // Facebook client stats
-    this.app.get('/stats/http-client', (req: Request, res: Response) => {
+    this.app.get('/stats/http-client', (_req: Request, res: Response) => {
       const stats = facebookClient.getStats();
       res.json(stats);
     });
 
     // Circuit breaker stats
-    this.app.get('/stats/circuit-breaker', (req: Request, res: Response) => {
+    this.app.get('/stats/circuit-breaker', (_req: Request, res: Response) => {
       const states = circuitBreaker.getCircuitStates();
       res.json({
         enabled: env.circuitBreaker.enabled,
@@ -94,7 +94,7 @@ class ApiServer {
     });
 
     // Log batch writer stats
-    this.app.get('/stats/log-writer', (req: Request, res: Response) => {
+    this.app.get('/stats/log-writer', (_req: Request, res: Response) => {
       const stats = logBatchWriter.getStats();
       res.json(stats);
     });
@@ -112,7 +112,7 @@ class ApiServer {
     });
 
     // Performance metrics
-    this.app.get('/stats/performance', async (req: Request, res: Response) => {
+    this.app.get('/stats/performance', async (_req: Request, res: Response) => {
       try {
         const queueCounts = await messageQueue.getJobCounts();
         const httpStats = facebookClient.getStats();
@@ -159,7 +159,7 @@ class ApiServer {
     serverAdapter.setBasePath('/admin/queues');
 
     createBullBoard({
-      queues: [new BullMQAdapter(messageQueue)],
+      queues: [new BullMQAdapter(messageQueue) as any],
       serverAdapter: serverAdapter,
     });
 

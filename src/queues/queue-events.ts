@@ -9,9 +9,17 @@ export const queueEvents = new QueueEvents(MESSAGE_QUEUE_NAME, {
 });
 
 queueEvents.on('completed', ({ jobId, returnvalue }) => {
+  let success = false;
+  try {
+    const result = typeof returnvalue === 'string' ? JSON.parse(returnvalue) : returnvalue;
+    success = result?.success || false;
+  } catch {
+    success = false;
+  }
+
   logger.debug('Job completed', {
     job_id: jobId,
-    success: returnvalue?.success,
+    success,
   });
 });
 

@@ -1,5 +1,5 @@
 // Flow processor - migrated from process_message_run.js
-import { Flow, FlowNode, FlowConnection, AssembledMessage } from '../types';
+import { Flow, FlowNode, FlowConnection } from '../types';
 import logger from './logger';
 
 export interface FlowProcessingResult {

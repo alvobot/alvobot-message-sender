@@ -15,8 +15,8 @@ messageQueue.on('error', (error) => {
   logger.error('❌ Message queue error', { error: error.message });
 });
 
-messageQueue.on('waiting', ({ jobId }) => {
-  logger.debug('Job waiting', { job_id: jobId });
+messageQueue.on('waiting', (job) => {
+  logger.debug('Job waiting', { job_id: job?.id || 'unknown' });
 });
 
 logger.info('✅ Message queue initialized', {

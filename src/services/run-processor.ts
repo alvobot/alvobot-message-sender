@@ -6,7 +6,7 @@ import messageQueue from '../queues/message-queue';
 import logger from '../utils/logger';
 import env from '../config/env';
 import { assembleMessages } from '../utils/flow-processor';
-import { MessageRun, MessageFlow, MetaPage, MetaSubscriber } from '../types';
+import { MessageRun, MessageFlow } from '../types';
 import { replacePlaceholders } from '../utils/helpers';
 
 class RunProcessor {

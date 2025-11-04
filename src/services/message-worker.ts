@@ -79,7 +79,7 @@ class MessageWorkerService {
   }
 
   private async processJob(job: Job<QueueMessagePayload>) {
-    const { runId, flowId, nodeId, pageId, userId, pageAccessToken, message } = job.data;
+    const { runId, pageId, userId, pageAccessToken, message } = job.data;
 
     // Check circuit breaker
     if (circuitBreaker.isCircuitOpen(pageId)) {

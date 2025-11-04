@@ -1,7 +1,6 @@
 // Batch log writer for optimized PostgreSQL inserts
 // Batches logs in memory and bulk inserts every N logs or N seconds
 
-import { Pool } from 'pg';
 import pool from './postgres';
 import logger from '../utils/logger';
 import env from '../config/env';

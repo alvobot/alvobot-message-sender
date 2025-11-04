@@ -30,8 +30,4 @@ export const workerConfig: WorkerOptions = {
     duration: 1000,
   },
   lockDuration: 30000, // 30 seconds lock (enough time to send message)
-  settings: {
-    stalledInterval: 30000, // Check for stalled jobs every 30s
-    maxStalledCount: 1, // Max stalled count before moving to failed
-  },
 };

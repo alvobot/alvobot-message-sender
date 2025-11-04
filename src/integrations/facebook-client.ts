@@ -82,7 +82,7 @@ class FacebookClient {
       const duration = Date.now() - startTime;
       const statsAfter = this.agent.getCurrentStatus();
 
-      const socketReused = (statsBefore.sockets || 0) > 0;
+      const socketReused = (Number(statsBefore.sockets) || 0) > 0;
 
       logger.debug('Message sent successfully', {
         recipient_id: recipientId,
@@ -98,8 +98,8 @@ class FacebookClient {
         stats: {
           duration_ms: duration,
           socket_reused: socketReused,
-          total_sockets: statsAfter.sockets || 0,
-          free_sockets: statsAfter.freeSockets || 0,
+          total_sockets: Number(statsAfter.sockets) || 0,
+          free_sockets: Number(statsAfter.freeSockets) || 0,
         },
       };
     } catch (error: any) {
@@ -127,9 +127,9 @@ class FacebookClient {
           },
           stats: {
             duration_ms: duration,
-            socket_reused: (statsBefore.sockets || 0) > 0,
-            total_sockets: statsAfter.sockets || 0,
-            free_sockets: statsAfter.freeSockets || 0,
+            socket_reused: (Number(statsBefore.sockets) || 0) > 0,
+            total_sockets: Number(statsAfter.sockets) || 0,
+            free_sockets: Number(statsAfter.freeSockets) || 0,
           },
         };
       }
@@ -150,9 +150,9 @@ class FacebookClient {
         },
         stats: {
           duration_ms: duration,
-          socket_reused: (statsBefore.sockets || 0) > 0,
-          total_sockets: statsAfter.sockets || 0,
-          free_sockets: statsAfter.freeSockets || 0,
+          socket_reused: (Number(statsBefore.sockets) || 0) > 0,
+          total_sockets: Number(statsAfter.sockets) || 0,
+          free_sockets: Number(statsAfter.freeSockets) || 0,
         },
       };
     }
@@ -161,7 +161,25 @@ class FacebookClient {
   /**
    * Get client statistics
    */
-  getStats() {
+  getStats(): {
+    clientId: string;
+    createdAt: string;
+    totalRequests: number;
+    agent: {
+      sockets: number;
+      freeSockets: number;
+      createSocketCount: number;
+      createSocketErrorCount: number;
+      closeSocketCount: number;
+      errorSocketCount: number;
+      timeoutSocketCount: number;
+      requestCount: number;
+    };
+    performance: {
+      socketReuseRate: string;
+      avgSocketsPerRequest: string;
+    };
+  } {
     const agentStatus = this.agent.getCurrentStatus();
 
     return {
@@ -169,27 +187,27 @@ class FacebookClient {
       createdAt: this.createdAt,
       totalRequests: this.requestCount,
       agent: {
-        sockets: agentStatus.sockets || 0,
-        freeSockets: agentStatus.freeSockets || 0,
-        createSocketCount: agentStatus.createSocketCount || 0,
-        createSocketErrorCount: agentStatus.createSocketErrorCount || 0,
-        closeSocketCount: agentStatus.closeSocketCount || 0,
-        errorSocketCount: agentStatus.errorSocketCount || 0,
-        timeoutSocketCount: agentStatus.timeoutSocketCount || 0,
-        requestCount: agentStatus.requestCount || 0,
+        sockets: Number(agentStatus.sockets) || 0,
+        freeSockets: Number(agentStatus.freeSockets) || 0,
+        createSocketCount: Number(agentStatus.createSocketCount) || 0,
+        createSocketErrorCount: Number(agentStatus.createSocketErrorCount) || 0,
+        closeSocketCount: Number(agentStatus.closeSocketCount) || 0,
+        errorSocketCount: Number(agentStatus.errorSocketCount) || 0,
+        timeoutSocketCount: Number(agentStatus.timeoutSocketCount) || 0,
+        requestCount: Number(agentStatus.requestCount) || 0,
       },
       performance: {
         socketReuseRate:
           agentStatus.requestCount && agentStatus.createSocketCount
             ? (
-                ((agentStatus.requestCount - agentStatus.createSocketCount) /
-                  agentStatus.requestCount) *
+                ((Number(agentStatus.requestCount) - Number(agentStatus.createSocketCount)) /
+                  Number(agentStatus.requestCount)) *
                 100
               ).toFixed(2) + '%'
             : '0%',
         avgSocketsPerRequest:
           this.requestCount > 0
-            ? ((agentStatus.sockets || 0) / this.requestCount).toFixed(2)
+            ? ((Number(agentStatus.sockets) || 0) / this.requestCount).toFixed(2)
             : '0',
       },
     };
