@@ -7,7 +7,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: newar-run-processor
     restart: unless-stopped
     env_file:
       - .env
@@ -110,7 +109,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: newar-api
     restart: unless-stopped
     env_file:
       - .env
@@ -137,8 +135,6 @@ services:
       API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
       LOG_LEVEL: ${LOG_LEVEL}
 
-    ports:
-      - "3100:3000"
     logging:
       driver: "json-file"
       options:
