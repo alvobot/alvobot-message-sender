@@ -1,42 +1,37 @@
 # EasyPanel Deployment Guide
 
-## Network Configuration
+## Architecture
 
-This application uses standard Docker networking, allowing containers to communicate using Docker service names (like `cast_redis`, `cast_postgres`).
+This application now includes **Redis and PostgreSQL** as part of the Docker Compose stack. You don't need to configure external Redis or PostgreSQL services in EasyPanel.
+
+## Included Services
+
+- **redis**: Redis 7 Alpine (in-memory data store for BullMQ)
+- **postgres**: PostgreSQL 16 Alpine (database for message logs)
+- **run-processor**: Processes pending message runs
+- **message-worker**: Sends messages to Facebook (2 replicas)
+- **api**: Bull Board UI + Health checks + Metrics
 
 ## Required Environment Variables
 
-### Redis Configuration
+### Redis Configuration (Internal Service)
 
-EasyPanel provides a Redis connection URL like:
-```
-redis://default:48612a2f97fcf9e63ef4@cast_redis:6379
-```
-
-Extract these values:
-- **Hostname**: `cast_redis` (the part after `@` and before `:`)
-- **Password**: `48612a2f97fcf9e63ef4` (the part between `:` and `@`)
-- **Port**: `6379` (the part after the last `:`)
-
-Configure in your .env:
 ```bash
-REDIS_HOST=cast_redis
+REDIS_HOST=redis  # Docker service name (don't change)
 REDIS_PORT=6379
-REDIS_PASSWORD=48612a2f97fcf9e63ef4
-REDIS_DB=2
+REDIS_PASSWORD=your_secure_redis_password  # Change this!
+REDIS_DB=0
 ```
 
-### PostgreSQL Configuration
-
-EasyPanel provides PostgreSQL connection details. Use the EasyPanel service name:
+### PostgreSQL Configuration (Internal Service)
 
 ```bash
-POSTGRES_HOST=cast_postgres
+POSTGRES_HOST=postgres  # Docker service name (don't change)
 POSTGRES_PORT=5432
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_postgres_password
-POSTGRES_DB=n8n-cast
-POSTGRES_SCHEMA=message_logs
+POSTGRES_PASSWORD=your_secure_postgres_password  # Change this!
+POSTGRES_DB=message_sender
+POSTGRES_SCHEMA=public
 ```
 
 ### API Port

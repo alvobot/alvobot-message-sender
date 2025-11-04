@@ -1,5 +1,40 @@
 services:
   # ===========================================
+  # REDIS SERVICE
+  # In-memory data store for BullMQ job queue
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-your_redis_password}
+    volumes:
+      - redis_data:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================
+  # POSTGRESQL SERVICE
+  # Database for message logs
+  # ===========================================
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_postgres_password}
+      POSTGRES_DB: ${POSTGRES_DB:-message_sender}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================
   # RUN PROCESSOR SERVICE
   # Polls Supabase for pending runs and enqueues messages
   # ===========================================
@@ -8,6 +43,9 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    depends_on:
+      - redis
+      - postgres
     env_file:
       - .env
     environment:
@@ -51,6 +89,9 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    depends_on:
+      - redis
+      - postgres
     env_file:
       - .env
     environment:
@@ -110,6 +151,9 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    depends_on:
+      - redis
+      - postgres
     env_file:
       - .env
     environment:
@@ -142,9 +186,17 @@ services:
         max-file: "3"
 
 # ===========================================
-# NETWORKING NOTE
+# VOLUMES
+# ===========================================
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+# ===========================================
+# NETWORKING
 # ===========================================
 # Using Docker Compose default networking
-# All services in this compose file will be on the same network automatically
-# To connect to external services (Redis, PostgreSQL), they must be on the same Docker network
-# In EasyPanel, configure services to use the project's default network
+# All services are automatically on the same network and can communicate by service name
+# Use REDIS_HOST=redis and POSTGRES_HOST=postgres in your .env file
