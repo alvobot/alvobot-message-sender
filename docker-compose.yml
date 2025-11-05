@@ -33,6 +33,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-message_sender}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
   # ===========================================
   # RUN PROCESSOR SERVICE
