@@ -182,7 +182,7 @@ class ApiServer {
 
     // Reset circuit breaker for a page
     this.app.post('/circuit-breaker/reset/:pageId', (req: Request, res: Response) => {
-      const pageId = parseInt(req.params.pageId, 10);
+      const pageId = req.params.pageId; // Keep as string for large Facebook page IDs
       const success = circuitBreaker.manualReset(pageId);
 
       if (success) {

@@ -1,7 +1,7 @@
 // Database types
 
 export interface MetaPage {
-  page_id: number;
+  page_id: string; // Changed from number to string to preserve precision of large IDs
   page_name: string;
   access_token: string;
   is_active: boolean;
@@ -12,7 +12,7 @@ export interface MetaPage {
 }
 
 export interface MetaSubscriber {
-  page_id: number;
+  page_id: string; // Changed from number to string to preserve precision of large IDs
   user_id: string;
   user_name: string | null;
   is_active: boolean;

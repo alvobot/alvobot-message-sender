@@ -11,7 +11,7 @@ interface CircuitState {
 }
 
 class CircuitBreaker {
-  private circuits: Map<number, CircuitState> = new Map();
+  private circuits: Map<string, CircuitState> = new Map(); // Changed to string for large page IDs
   private readonly threshold: number;
   private readonly timeout: number;
   private readonly enabled: boolean;
@@ -32,7 +32,7 @@ class CircuitBreaker {
   /**
    * Check if circuit is open for a page
    */
-  isCircuitOpen(pageId: number): boolean {
+  isCircuitOpen(pageId: string): boolean {
     if (!this.enabled) return false;
 
     const circuit = this.circuits.get(pageId);
@@ -56,7 +56,7 @@ class CircuitBreaker {
   /**
    * Record a failure for a page
    */
-  recordFailure(pageId: number, errorCode: string) {
+  recordFailure(pageId: string, errorCode: string) {
     if (!this.enabled) return;
 
     // Only track auth errors that indicate permanent page issues
@@ -97,7 +97,7 @@ class CircuitBreaker {
   /**
    * Record a success for a page (reset failures)
    */
-  recordSuccess(pageId: number) {
+  recordSuccess(pageId: string) {
     if (!this.enabled) return;
 
     const circuit = this.circuits.get(pageId);
@@ -113,7 +113,7 @@ class CircuitBreaker {
   /**
    * Reset circuit for a page
    */
-  private resetCircuit(pageId: number) {
+  private resetCircuit(pageId: string) {
     this.circuits.delete(pageId);
   }
 
@@ -122,7 +122,7 @@ class CircuitBreaker {
    */
   getCircuitStates() {
     const states: Array<{
-      pageId: number;
+      pageId: string;
       failures: number;
       isOpen: boolean;
       lastFailureTime: string;
@@ -143,7 +143,7 @@ class CircuitBreaker {
   /**
    * Manually reset a circuit for a page
    */
-  manualReset(pageId: number) {
+  manualReset(pageId: string) {
     const circuit = this.circuits.get(pageId);
     if (circuit) {
       logger.info('Circuit breaker manually reset', { page_id: pageId });

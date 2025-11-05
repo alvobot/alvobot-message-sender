@@ -4,8 +4,8 @@
 CREATE TABLE IF NOT EXISTS message_logs (
   id SERIAL PRIMARY KEY,
   run_id INTEGER NOT NULL,
-  page_id BIGINT NOT NULL,
-  user_id BIGINT NOT NULL,
+  page_id VARCHAR(50) NOT NULL,  -- Using VARCHAR to preserve precision of large Facebook IDs
+  user_id VARCHAR(50) NOT NULL,  -- Using VARCHAR to preserve precision of large Facebook IDs
   status VARCHAR(50) NOT NULL,
   error_code VARCHAR(50),
   error_message TEXT,

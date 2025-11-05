@@ -4,7 +4,7 @@ export interface QueueMessagePayload {
   runId: number;
   flowId: string;
   nodeId: string;
-  pageId: number;
+  pageId: string; // Changed from number to string to preserve precision of large IDs
   userId: string;
   pageAccessToken: string;
   message: FacebookMessage;
@@ -55,7 +55,7 @@ export interface SendMessageResult {
 
 export interface MessageLog {
   run_id: number;
-  page_id: number;
+  page_id: string; // Changed from number to string to preserve precision of large IDs
   user_id: string;
   status: 'sent' | 'failed' | 'rate_limited' | 'auth_error';
   error_code?: string;

@@ -24,7 +24,7 @@ export interface MessageRun {
   id: number;
   user_id: string;
   trigger_id: number;
-  page_ids: number[];
+  page_ids: string[]; // Changed from number[] to string[] to preserve precision of large IDs
   flow_id: string;
   status: string;
   start_at: string;

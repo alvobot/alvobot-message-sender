@@ -133,14 +133,16 @@ class RunProcessor {
     });
 
     // Transform page_ids array
-    let pageIds: number[] = [];
+    let pageIds: string[] = [];
     if (Array.isArray(run.page_ids)) {
-      pageIds = run.page_ids;
+      // Convert to strings to preserve precision of large IDs
+      pageIds = run.page_ids.map((id) => String(id));
     } else if (typeof run.page_ids === 'string') {
       try {
-        pageIds = JSON.parse(run.page_ids);
+        const parsed = JSON.parse(run.page_ids);
+        pageIds = Array.isArray(parsed) ? parsed.map((id) => String(id)) : [String(parsed)];
       } catch {
-        pageIds = [Number(run.page_ids)];
+        pageIds = [String(run.page_ids)];
       }
     }
 
@@ -172,7 +174,7 @@ class RunProcessor {
 
   private async enqueueMessagesForPage(
     run: MessageRun,
-    pageId: number,
+    pageId: string,
     flow: MessageFlow,
     messages: any[]
   ) {
