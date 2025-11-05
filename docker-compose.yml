@@ -209,29 +209,25 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
 
   # ===========================================
-  # PGADMIN SERVICE (Optional)
+  # PGADMIN SERVICE
   # Web UI for PostgreSQL database management
-  # Access at: http://localhost:5050
+  # Access at: https://message.s3.alvobot.com/pgadmin
   # ===========================================
   pgadmin:
     image: dpage/pgadmin4:latest
     restart: unless-stopped
-    profiles:
-      - debug  # Only runs when profile 'debug' is active
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_postgres_password}
-    ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      SCRIPT_NAME: /pgadmin
     depends_on:
       - postgres
     volumes:
       - pgadmin_data:/var/lib/pgadmin
       - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
-      - ./pgadmin-init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     entrypoint: >
       /bin/sh -c "
       mkdir -p /tmp;

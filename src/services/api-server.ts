@@ -5,6 +5,7 @@ import express, { Request, Response } from 'express';
 import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import messageQueue from '../queues/message-queue';
 import facebookClient from '../integrations/facebook-client';
 import circuitBreaker from '../integrations/circuit-breaker';
@@ -35,6 +36,28 @@ class ApiServer {
       });
       next();
     });
+
+    // Proxy /pgadmin to pgadmin service
+    this.app.use(
+      '/pgadmin',
+      createProxyMiddleware({
+        target: 'http://pgadmin:80',
+        changeOrigin: true,
+        ws: true, // WebSocket support
+        pathRewrite: {
+          '^/pgadmin': '/pgadmin', // Keep /pgadmin prefix
+        },
+        onError: (err, req, res) => {
+          logger.error('pgAdmin proxy error', { error: err.message });
+          if (res instanceof Response) {
+            res.status(502).json({ error: 'pgAdmin service unavailable' });
+          }
+        },
+        onProxyReq: (proxyReq, req, res) => {
+          logger.debug('Proxying to pgAdmin', { path: req.path });
+        },
+      })
+    );
   }
 
   private setupRoutes() {

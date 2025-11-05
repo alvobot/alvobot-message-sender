@@ -2,27 +2,25 @@
 
 O pgAdmin é uma interface web para visualizar e gerenciar o banco de dados PostgreSQL.
 
-## Como usar
+## Acesso em Produção
 
-### 1. Iniciar o pgAdmin
+**URL:** https://message.s3.alvobot.com/pgadmin
 
-```bash
-# Iniciar com o profile debug
-docker compose --profile debug up -d pgadmin
+**Credenciais:**
+- Email: `admin@admin.com`
+- Senha: `admin` (ou a senha configurada no `.env` via `PGADMIN_PASSWORD`)
 
-# Ou iniciar todos os serviços incluindo pgAdmin
-docker compose --profile debug up -d
-```
+O pgAdmin roda automaticamente junto com os outros serviços e está sempre disponível.
 
-### 2. Acessar a interface
+## Acesso Local (Desenvolvimento)
 
-Abra no navegador: **http://localhost:5050**
+Abra no navegador: **http://localhost:3000/pgadmin**
 
 **Credenciais:**
 - Email: `admin@admin.com`
 - Senha: `admin`
 
-### 3. Acessar o banco de dados
+## Como usar
 
 Após fazer login:
 
@@ -71,14 +69,19 @@ PGADMIN_PASSWORD=sua-senha-segura
 PGADMIN_PORT=5050
 ```
 
-## Parar o pgAdmin
+## Gerenciamento
+
+O pgAdmin roda automaticamente com o docker-compose. Para parar/reiniciar:
 
 ```bash
 # Parar apenas o pgAdmin
-docker compose --profile debug stop pgadmin
+docker compose stop pgadmin
 
-# Parar e remover
-docker compose --profile debug down pgadmin
+# Reiniciar apenas o pgAdmin
+docker compose restart pgadmin
+
+# Ver logs do pgAdmin
+docker compose logs -f pgadmin
 ```
 
 ## Troubleshooting
