@@ -208,6 +208,26 @@ services:
       API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
       LOG_LEVEL: ${LOG_LEVEL}
 
+  # ===========================================
+  # PGADMIN SERVICE (Optional)
+  # Web UI for PostgreSQL database management
+  # ===========================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    profiles:
+      - debug  # Only runs when profile 'debug' is active
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
 
 # ===========================================
 # VOLUMES
@@ -216,6 +236,8 @@ volumes:
   redis_data:
     driver: local
   postgres_data:
+    driver: local
+  pgadmin_data:
     driver: local
 
 # ===========================================

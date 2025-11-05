@@ -111,6 +111,45 @@ class ApiServer {
       }
     });
 
+    // View message logs from database
+    this.app.get('/logs/messages', async (req: Request, res: Response) => {
+      try {
+        const { default: pool } = await import('../database/postgres');
+
+        const limit = parseInt(req.query.limit as string) || 100;
+        const runId = req.query.run_id as string;
+        const status = req.query.status as string;
+
+        let query = 'SELECT * FROM message_logs.message_logs WHERE 1=1';
+        const params: any[] = [];
+        let paramIndex = 1;
+
+        if (runId) {
+          query += ` AND run_id = $${paramIndex}`;
+          params.push(parseInt(runId));
+          paramIndex++;
+        }
+
+        if (status) {
+          query += ` AND status = $${paramIndex}`;
+          params.push(status);
+          paramIndex++;
+        }
+
+        query += ` ORDER BY created_at DESC LIMIT $${paramIndex}`;
+        params.push(limit);
+
+        const result = await pool.query(query, params);
+
+        return res.json({
+          count: result.rows.length,
+          logs: result.rows,
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: error.message });
+      }
+    });
+
     // Queue stats
     this.app.get('/stats/queue', async (_req: Request, res: Response) => {
       try {
