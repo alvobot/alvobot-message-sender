@@ -188,7 +188,7 @@ class ApiServer {
 
         const { data, error } = await supabase
           .from('meta_subscribers')
-          .select('user_id::bigint, page_id::bigint, first_name, last_name, created_at, updated_at')
+          .select('user_id::bigint, page_id::bigint, user_name, is_active, can_reply, is_subscribed, last_interaction_at, window_expires_at, created_at, updated_at')
           .eq('user_id', userId)
           .single();
 
@@ -204,8 +204,12 @@ class ApiServer {
         const result = {
           user_id: String(data.user_id),
           page_id: String(data.page_id),
-          first_name: data.first_name,
-          last_name: data.last_name,
+          user_name: data.user_name,
+          is_active: data.is_active,
+          can_reply: data.can_reply,
+          is_subscribed: data.is_subscribed,
+          last_interaction_at: data.last_interaction_at,
+          window_expires_at: data.window_expires_at,
           created_at: data.created_at,
           updated_at: data.updated_at,
           // Show the raw BigInt type for debugging
