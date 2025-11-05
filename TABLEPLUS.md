@@ -7,45 +7,99 @@ Este guia mostra como conectar ao banco de dados PostgreSQL usando TablePlus.
 1. [TablePlus](https://tableplus.com/) instalado
 2. Postgres rodando (porta 5432 exposta)
 
-## Configuração no EasyPanel
+## Importante: PostgreSQL NÃO está exposto externamente
 
-A porta do PostgreSQL já está exposta na **porta 5433** (evita conflitos com outros serviços).
+Por questões de segurança e para evitar conflitos no EasyPanel, a porta do PostgreSQL **não** está exposta publicamente.
 
-**Nota:** O docker-compose mapeia `5433:5432` (porta 5433 externa → porta 5432 interna do container).
+Para conectar no TablePlus, você tem **2 opções**:
 
-Se você receber alerta no EasyPanel sobre conflito de portas, ignore - a aplicação já usa porta 5433 por padrão.
+### Opção 1: SSH Tunnel (Recomendado) 🔒
+### Opção 2: pgAdmin Web UI (Mais fácil) 🌐
 
-## Conectar no TablePlus
+---
 
-### 1. Abrir nova conexão
+## Opção 1: Conectar via SSH Tunnel (Recomendado) 🔒
 
-- Abra o TablePlus
-- Click em **Create a new connection**
-- Selecione **PostgreSQL**
+### Passo 1: Configure acesso SSH ao servidor
 
-### 2. Configurar conexão
+Você precisa ter acesso SSH ao servidor do EasyPanel:
 
-Preencha os campos:
+```bash
+# Teste a conexão SSH primeiro
+ssh root@seu-servidor.com
+```
 
-**Para servidor remoto (EasyPanel):**
+Se funcionar, você pode usar SSH tunnel!
+
+### Passo 2: Configurar conexão no TablePlus
+
+1. Abra o TablePlus
+2. Click em **Create a new connection**
+3. Selecione **PostgreSQL**
+4. Preencha os campos:
+
+**Aba "General":**
 ```
 Name:         Message Sender DB (Production)
-Host:         message.s3.alvobot.com (ou seu domínio/IP)
-Port:         5433  ⚠️ IMPORTANTE: Porta 5433, não 5432!
+Host:         localhost
+Port:         5432
 User:         postgres
 Password:     [sua senha do POSTGRES_PASSWORD no .env]
 Database:     message_sender
 ```
 
-**Para local (desenvolvimento):**
+**Aba "SSH":** ✅ Enable SSH tunnel
+```
+SSH Host:     seu-servidor.com (ou IP do servidor)
+SSH Port:     22
+SSH User:     root (ou seu usuário SSH)
+SSH Password: [sua senha SSH] (ou use SSH Key)
+```
+
+5. Click em **Test** → Deve conectar!
+6. Click em **Connect**
+
+### Como funciona:
+
+```
+TablePlus → SSH Tunnel → Servidor → Docker → PostgreSQL
+(localhost:5432)         (porta 22)   (container postgres:5432)
+```
+
+O SSH cria um túnel seguro e o TablePlus se conecta ao banco através dele!
+
+---
+
+## Opção 2: Usar pgAdmin Web (Mais fácil) 🌐
+
+Se você não tem acesso SSH ou prefere interface web:
+
+1. Acesse: **https://message.s3.alvobot.com/pgadmin**
+2. Login: `admin@admin.com` / `admin`
+3. O banco já vem pré-configurado!
+
+**Vantagens:**
+- ✅ Não precisa SSH
+- ✅ Acessa de qualquer lugar
+- ✅ Não expõe porta do banco
+- ✅ Já vem configurado
+
+---
+
+## Desenvolvimento Local
+
+Para conectar no banco local (docker-compose rodando na sua máquina):
+
 ```
 Name:         Message Sender DB (Local)
 Host:         localhost
-Port:         5433  ⚠️ IMPORTANTE: Porta 5433, não 5432!
+Port:         5432
 User:         postgres
-Password:     postgres (ou a senha do seu .env local)
+Password:     postgres
 Database:     message_sender
 ```
+
+Não precisa SSH tunnel para conexões locais!
 
 ### 3. Testar conexão
 
