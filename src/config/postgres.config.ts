@@ -17,17 +17,18 @@ const poolConfig: PoolConfig = {
 
 export const pool = new Pool(poolConfig);
 
-// Set search_path to message_logs schema
+// Set search_path to message_logs schema when client connects
 pool.on('connect', async (client) => {
-  await client.query(`SET search_path TO ${env.postgres.schema}, public`);
+  try {
+    await client.query(`SET search_path TO ${env.postgres.schema}, public`);
+    logger.debug('PostgreSQL client connected to pool', { schema: env.postgres.schema });
+  } catch (error: any) {
+    logger.error('Failed to set search_path', { error: error.message });
+  }
 });
 
 pool.on('error', (error) => {
   logger.error('❌ PostgreSQL pool error', { error: error.message });
-});
-
-pool.on('connect', () => {
-  logger.debug('PostgreSQL client connected to pool');
 });
 
 pool.on('remove', () => {

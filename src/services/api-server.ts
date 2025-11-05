@@ -180,6 +180,54 @@ class ApiServer {
       res.status(allSuccess ? 200 : 500).json(results);
     });
 
+    // Test endpoint: Get subscriber by user_id with BigInt casting
+    this.app.get('/test/subscriber/:userId', async (req: Request, res: Response) => {
+      try {
+        const { default: supabase } = await import('../database/supabase');
+        const userId = req.params.userId;
+
+        const { data, error } = await supabase
+          .from('meta_subscribers')
+          .select('user_id::bigint, page_id::bigint, first_name, last_name, created_at, updated_at')
+          .eq('user_id', userId)
+          .single();
+
+        if (error) {
+          return res.status(500).json({ error: error.message });
+        }
+
+        if (!data) {
+          return res.status(404).json({ error: 'Subscriber not found' });
+        }
+
+        // Convert BigInt to string for JSON serialization
+        const result = {
+          user_id: String(data.user_id),
+          page_id: String(data.page_id),
+          first_name: data.first_name,
+          last_name: data.last_name,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          // Show the raw BigInt type for debugging
+          debug: {
+            user_id_type: typeof data.user_id,
+            page_id_type: typeof data.page_id,
+            user_id_bigint: data.user_id,
+            page_id_bigint: data.page_id,
+          },
+        };
+
+        // Use custom replacer to handle BigInt in response
+        const bigIntReplacer = (_key: string, value: any) =>
+          typeof value === 'bigint' ? value.toString() : value;
+
+        res.setHeader('Content-Type', 'application/json');
+        return res.send(JSON.stringify(result, bigIntReplacer, 2));
+      } catch (error: any) {
+        return res.status(500).json({ error: error.message, stack: error.stack });
+      }
+    });
+
     // Reset circuit breaker for a page
     this.app.post('/circuit-breaker/reset/:pageId', (req: Request, res: Response) => {
       const pageId = req.params.pageId; // Keep as string for large Facebook page IDs
