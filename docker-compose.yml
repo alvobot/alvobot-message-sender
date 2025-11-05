@@ -222,7 +222,6 @@ services:
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_postgres_password}
-      SCRIPT_NAME: /pgadmin
     depends_on:
       - postgres
     volumes:

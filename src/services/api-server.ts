@@ -38,12 +38,16 @@ class ApiServer {
     });
 
     // Proxy /pgadmin to pgadmin service
+    // Remove /pgadmin prefix before forwarding to pgAdmin
     this.app.use(
       '/pgadmin',
       createProxyMiddleware({
         target: 'http://pgadmin:80',
         changeOrigin: true,
         ws: true,
+        pathRewrite: {
+          '^/pgadmin': '', // Remove /pgadmin prefix
+        },
       })
     );
   }
