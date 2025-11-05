@@ -61,7 +61,6 @@ class RunProcessor {
     const now = new Date().toISOString();
 
     // Fetch pending runs from Supabase
-    // Note: page_ids will come as numbers and need to be converted to strings to preserve precision
     const { data: runs, error } = await supabase
       .from('message_runs')
       .select('*')
@@ -179,10 +178,10 @@ class RunProcessor {
     flow: MessageFlow,
     messages: any[]
   ) {
-    // Fetch page data (cast page_id to text to preserve precision of large IDs)
+    // Fetch page data (cast page_id to bigint to preserve precision of large IDs)
     const { data: page, error: pageError } = await supabase
       .from('meta_pages')
-      .select('page_id::text, page_name, access_token, is_active, user_id, connection_id, created_at, updated_at')
+      .select('page_id::bigint, page_name, access_token, is_active, user_id, connection_id, created_at, updated_at')
       .eq('page_id', pageId)
       .single();
 
@@ -199,10 +198,10 @@ class RunProcessor {
       return;
     }
 
-    // Fetch active subscribers for this page (cast IDs to text to preserve precision)
+    // Fetch active subscribers for this page (cast IDs to bigint to preserve precision)
     const { data: subscribers, error: subscribersError } = await supabase
       .from('meta_subscribers')
-      .select('page_id::text, user_id::text')
+      .select('page_id::bigint, user_id::bigint')
       .eq('page_id', pageId)
       .eq('is_active', true);
 
@@ -229,6 +228,9 @@ class RunProcessor {
     const jobs: Array<{ name: string; data: any }> = [];
 
     for (const subscriber of subscribers) {
+      // Convert BigInt to string to preserve precision
+      const userIdStr = String(subscriber.user_id);
+
       for (let i = 0; i < messages.length; i++) {
         const message = messages[i];
 
@@ -236,17 +238,17 @@ class RunProcessor {
         let messageWithReplacements = JSON.parse(JSON.stringify(message));
         messageWithReplacements = this.replacePlaceholdersInMessage(
           messageWithReplacements,
-          { USER_ID: subscriber.user_id }
+          { USER_ID: userIdStr }
         );
 
         jobs.push({
-          name: `run_${run.id}_page_${pageId}_user_${subscriber.user_id}_msg_${i}`,
+          name: `run_${run.id}_page_${pageId}_user_${userIdStr}_msg_${i}`,
           data: {
             runId: run.id,
             flowId: flow.id,
             nodeId: 'unknown', // TODO: track node ID
-            pageId: pageId,
-            userId: subscriber.user_id,
+            pageId: String(page.page_id), // Convert BigInt to string
+            userId: userIdStr,
             pageAccessToken: page.access_token,
             message: messageWithReplacements,
           },
