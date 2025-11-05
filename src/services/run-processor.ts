@@ -61,6 +61,7 @@ class RunProcessor {
     const now = new Date().toISOString();
 
     // Fetch pending runs from Supabase
+    // Note: page_ids will come as numbers and need to be converted to strings to preserve precision
     const { data: runs, error } = await supabase
       .from('message_runs')
       .select('*')
@@ -178,10 +179,10 @@ class RunProcessor {
     flow: MessageFlow,
     messages: any[]
   ) {
-    // Fetch page data
+    // Fetch page data (cast page_id to text to preserve precision of large IDs)
     const { data: page, error: pageError } = await supabase
       .from('meta_pages')
-      .select('*')
+      .select('page_id::text, page_name, access_token, is_active, user_id, connection_id, created_at, updated_at')
       .eq('page_id', pageId)
       .single();
 
@@ -198,10 +199,10 @@ class RunProcessor {
       return;
     }
 
-    // Fetch active subscribers for this page
+    // Fetch active subscribers for this page (cast IDs to text to preserve precision)
     const { data: subscribers, error: subscribersError } = await supabase
       .from('meta_subscribers')
-      .select('user_id')
+      .select('page_id::text, user_id::text')
       .eq('page_id', pageId)
       .eq('is_active', true);
 
