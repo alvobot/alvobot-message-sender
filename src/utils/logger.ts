@@ -15,7 +15,10 @@ const consoleFormat = winston.format.combine(
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
     let msg = `${timestamp} [${level}]: ${message}`;
     if (Object.keys(meta).length > 0) {
-      msg += ` ${JSON.stringify(meta)}`;
+      // Custom replacer to handle BigInt serialization in logs
+      const bigIntReplacer = (_key: string, value: any) =>
+        typeof value === 'bigint' ? value.toString() : value;
+      msg += ` ${JSON.stringify(meta, bigIntReplacer)}`;
     }
     return msg;
   })

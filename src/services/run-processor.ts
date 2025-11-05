@@ -235,7 +235,8 @@ class RunProcessor {
         const message = messages[i];
 
         // Replace placeholders in message
-        let messageWithReplacements = JSON.parse(JSON.stringify(message));
+        // Use structuredClone to preserve BigInt values (unlike JSON.parse/stringify)
+        let messageWithReplacements = structuredClone(message);
         messageWithReplacements = this.replacePlaceholdersInMessage(
           messageWithReplacements,
           { USER_ID: userIdStr }
@@ -269,7 +270,11 @@ class RunProcessor {
   }
 
   private replacePlaceholdersInMessage(message: any, replacements: Record<string, string>): any {
-    const messageStr = JSON.stringify(message);
+    // Custom replacer to handle BigInt serialization
+    const bigIntReplacer = (_key: string, value: any) =>
+      typeof value === 'bigint' ? value.toString() : value;
+
+    const messageStr = JSON.stringify(message, bigIntReplacer);
     const replaced = replacePlaceholders(messageStr, replacements);
     return JSON.parse(replaced);
   }
