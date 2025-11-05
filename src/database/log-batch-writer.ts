@@ -89,7 +89,7 @@ class LogBatchWriter {
       });
 
       const query = `
-        INSERT INTO message_logs (run_id, page_id, user_id, status, error_code, error_message)
+        INSERT INTO message_logs.message_logs (run_id, page_id, user_id, status, error_code, error_message)
         VALUES ${placeholders.join(', ')}
       `;
 

@@ -74,6 +74,43 @@ class ApiServer {
       }
     });
 
+    // Debug endpoint: Check if message_logs table exists
+    this.app.get('/debug/postgres', async (_req: Request, res: Response) => {
+      try {
+        const { default: pool } = await import('../database/postgres');
+
+        // Check if table exists
+        const tableCheck = await pool.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'message_logs'
+            AND table_name = 'message_logs'
+          ) as table_exists;
+        `);
+
+        // Check current search_path
+        const searchPath = await pool.query('SHOW search_path;');
+
+        // Try to count rows (will fail if table doesn't exist)
+        let rowCount = null;
+        try {
+          const countResult = await pool.query('SELECT COUNT(*) FROM message_logs.message_logs;');
+          rowCount = countResult.rows[0].count;
+        } catch (e: any) {
+          rowCount = `Error: ${e.message}`;
+        }
+
+        return res.json({
+          table_exists: tableCheck.rows[0].table_exists,
+          search_path: searchPath.rows[0].search_path,
+          row_count: rowCount,
+          schema: env.postgres.schema,
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: error.message, stack: error.stack });
+      }
+    });
+
     // Queue stats
     this.app.get('/stats/queue', async (_req: Request, res: Response) => {
       try {
