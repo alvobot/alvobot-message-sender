@@ -43,19 +43,7 @@ class ApiServer {
       createProxyMiddleware({
         target: 'http://pgadmin:80',
         changeOrigin: true,
-        ws: true, // WebSocket support
-        pathRewrite: {
-          '^/pgadmin': '/pgadmin', // Keep /pgadmin prefix
-        },
-        onError: (err, req, res) => {
-          logger.error('pgAdmin proxy error', { error: err.message });
-          if (res instanceof Response) {
-            res.status(502).json({ error: 'pgAdmin service unavailable' });
-          }
-        },
-        onProxyReq: (proxyReq, req, res) => {
-          logger.debug('Proxying to pgAdmin', { path: req.path });
-        },
+        ws: true,
       })
     );
   }
