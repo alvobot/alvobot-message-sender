@@ -188,7 +188,7 @@ class ApiServer {
 
         const { data, error } = await supabase
           .from('meta_subscribers')
-          .select('user_id::bigint, page_id::bigint, user_name, is_active, can_reply, is_subscribed, last_interaction_at, window_expires_at, created_at, updated_at')
+          .select('user_id::text, page_id::text, user_name, is_active, can_reply, is_subscribed, last_interaction_at, window_expires_at, created_at, updated_at')
           .eq('user_id', userId)
           .single();
 
@@ -200,10 +200,10 @@ class ApiServer {
           return res.status(404).json({ error: 'Subscriber not found' });
         }
 
-        // Convert BigInt to string for JSON serialization
+        // IDs already come as text from ::text cast
         const result = {
-          user_id: String(data.user_id),
-          page_id: String(data.page_id),
+          user_id: data.user_id,
+          page_id: data.page_id,
           user_name: data.user_name,
           is_active: data.is_active,
           can_reply: data.can_reply,
@@ -212,12 +212,12 @@ class ApiServer {
           window_expires_at: data.window_expires_at,
           created_at: data.created_at,
           updated_at: data.updated_at,
-          // Show the raw BigInt type for debugging
+          // Show the type for debugging
           debug: {
             user_id_type: typeof data.user_id,
             page_id_type: typeof data.page_id,
-            user_id_bigint: data.user_id,
-            page_id_bigint: data.page_id,
+            user_id_value: data.user_id,
+            page_id_value: data.page_id,
           },
         };
 
