@@ -36,6 +36,25 @@ services:
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
   # ===========================================
+  # POSTGRES INIT SERVICE
+  # Runs initialization script on every startup
+  # ===========================================
+  postgres-init:
+    image: postgres:16-alpine
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_postgres_password}
+      POSTGRES_DB: ${POSTGRES_DB:-message_sender}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-your_postgres_password}
+    volumes:
+      - ./init-postgres.sh:/init-postgres.sh
+    entrypoint: ["/bin/sh", "/init-postgres.sh"]
+
+  # ===========================================
   # RUN PROCESSOR SERVICE
   # Polls Supabase for pending runs and enqueues messages
   # ===========================================
