@@ -31,8 +31,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_postgres_password}
       POSTGRES_DB: ${POSTGRES_DB:-message_sender}
+    # Port mapping: host:container
+    # Use POSTGRES_EXTERNAL_PORT env var to change external port (defaults to 5433 to avoid conflicts)
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_EXTERNAL_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql

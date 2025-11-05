@@ -9,15 +9,11 @@ Este guia mostra como conectar ao banco de dados PostgreSQL usando TablePlus.
 
 ## Configuração no EasyPanel
 
-Para expor a porta do PostgreSQL no EasyPanel:
+A porta do PostgreSQL já está exposta na **porta 5433** (evita conflitos com outros serviços).
 
-1. Acesse o projeto no EasyPanel
-2. Vá em **Services → postgres**
-3. Em **Ports**, adicione:
-   - **Container Port:** 5432
-   - **Published Port:** 5432 (ou outra porta disponível)
-   - **Protocol:** TCP
-4. Salve e aguarde o restart
+**Nota:** O docker-compose mapeia `5433:5432` (porta 5433 externa → porta 5432 interna do container).
+
+Se você receber alerta no EasyPanel sobre conflito de portas, ignore - a aplicação já usa porta 5433 por padrão.
 
 ## Conectar no TablePlus
 
@@ -34,8 +30,8 @@ Preencha os campos:
 **Para servidor remoto (EasyPanel):**
 ```
 Name:         Message Sender DB (Production)
-Host:         seu-servidor.com (ou IP do servidor)
-Port:         5432
+Host:         message.s3.alvobot.com (ou seu domínio/IP)
+Port:         5433  ⚠️ IMPORTANTE: Porta 5433, não 5432!
 User:         postgres
 Password:     [sua senha do POSTGRES_PASSWORD no .env]
 Database:     message_sender
@@ -45,7 +41,7 @@ Database:     message_sender
 ```
 Name:         Message Sender DB (Local)
 Host:         localhost
-Port:         5432
+Port:         5433  ⚠️ IMPORTANTE: Porta 5433, não 5432!
 User:         postgres
 Password:     postgres (ou a senha do seu .env local)
 Database:     message_sender
