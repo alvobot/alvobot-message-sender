@@ -86,7 +86,7 @@ export function assembleMessages(
 
       case 'traffic':
         // Traffic split (A/B testing)
-        const selectedRoute = selectTrafficRoute(currentNode);
+        const selectedRoute = selectTrafficRoute(currentNode, connections);
         if (selectedRoute) {
           currentNodeId = selectedRoute;
           currentNode = nodes.find((node) => node.id === currentNodeId);
@@ -284,23 +284,80 @@ function calculateNextStepTime(node: FlowNode): string {
 /**
  * Select a route based on traffic split percentages (A/B testing)
  */
-function selectTrafficRoute(node: FlowNode): string | null {
-  if (!node.data.routes || node.data.routes.length === 0) {
+function selectTrafficRoute(node: FlowNode, connections: FlowConnection[]): string | null {
+  // Support both 'branches' and 'routes' for backwards compatibility
+  const branches = node.data.branches || node.data.routes;
+
+  if (!branches || branches.length === 0) {
+    logger.warn('Traffic node has no branches', { node_id: node.id });
     return null;
   }
 
+  // Generate random number for selection (0-100)
   const random = Math.random() * 100;
   let accumulated = 0;
 
-  for (const route of node.data.routes) {
-    accumulated += route.percentage;
+  logger.debug('Traffic split selection', {
+    node_id: node.id,
+    random_value: random.toFixed(2),
+    branches_count: branches.length,
+  });
+
+  // Select branch based on percentage
+  let selectedBranch = null;
+  for (let i = 0; i < branches.length; i++) {
+    const branch = branches[i];
+    accumulated += branch.percentage;
+
     if (random <= accumulated) {
-      return route.targetNodeId;
+      selectedBranch = branch;
+      logger.debug('Branch selected', {
+        branch_index: i,
+        branch_label: branch.label,
+        branch_percentage: branch.percentage,
+      });
+      break;
     }
   }
 
-  // Fallback to last route
-  return node.data.routes[node.data.routes.length - 1].targetNodeId;
+  // Fallback to last branch if none selected
+  if (!selectedBranch) {
+    selectedBranch = branches[branches.length - 1];
+    logger.debug('Using fallback branch', {
+      branch_label: selectedBranch.label,
+    });
+  }
+
+  // If branch has targetNodeId, use it directly
+  if (selectedBranch.targetNodeId) {
+    return selectedBranch.targetNodeId;
+  }
+
+  // Otherwise, find the connection using sourceHandle
+  // Connections from traffic nodes use sourceHandle like "nodeId-output-0", "nodeId-output-1", etc.
+  const branchIndex = branches.indexOf(selectedBranch);
+  const sourceHandle = `${node.id}-output-${branchIndex}`;
+
+  const connection = connections.find(
+    (conn: any) => conn.from === node.id && conn.sourceHandle === sourceHandle
+  );
+
+  if (connection) {
+    const targetId = (connection as any).to || connection.target;
+    logger.debug('Found connection for branch', {
+      source_handle: sourceHandle,
+      target_node: targetId,
+    });
+    return targetId;
+  }
+
+  logger.warn('No connection found for selected branch', {
+    node_id: node.id,
+    branch_index: branchIndex,
+    source_handle: sourceHandle,
+  });
+
+  return null;
 }
 
 /**
