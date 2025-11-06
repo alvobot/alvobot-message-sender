@@ -256,7 +256,9 @@ class RunProcessor {
     });
 
     // Enqueue a job for each subscriber × message combination
-    const jobs: Array<{ name: string; data: any }> = [];
+    // IMPORTANT: Add delay between messages to ensure correct order
+    const jobs: Array<{ name: string; data: any; opts?: any }> = [];
+    const MESSAGE_DELAY_MS = 2000; // 2 seconds delay between messages for same user
 
     for (const subscriber of subscribers) {
       // IDs already come as strings from ::text cast
@@ -273,6 +275,10 @@ class RunProcessor {
           { USER_ID: userIdStr }
         );
 
+        // Calculate delay: each message after the first gets delayed
+        // Message 0: no delay, Message 1: 2s delay, Message 2: 4s delay, etc.
+        const delayMs = i * MESSAGE_DELAY_MS;
+
         jobs.push({
           name: `run_${run.id}_page_${pageId}_user_${userIdStr}_msg_${i}`,
           data: {
@@ -283,7 +289,9 @@ class RunProcessor {
             userId: userIdStr,
             pageAccessToken: page.access_token,
             message: messageWithReplacements,
+            messageIndex: i, // Track message order
           },
+          opts: delayMs > 0 ? { delay: delayMs } : undefined,
         });
       }
     }
