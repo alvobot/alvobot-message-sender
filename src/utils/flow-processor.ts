@@ -249,8 +249,10 @@ function buildMetaMessage(node: FlowNode): any {
  * Calculate the timestamp for the next step based on wait time
  */
 function calculateNextStepTime(node: FlowNode): string {
-  const waitTime = node.data.waitTime || 0;
-  const waitUnit = node.data.waitUnit || 'minutes';
+  // Support both 'duration' and 'waitTime' for backwards compatibility
+  const waitTime = node.data.duration || node.data.waitTime || 0;
+  // Support both 'timeUnit' and 'waitUnit' for backwards compatibility
+  const waitUnit = node.data.timeUnit || node.data.waitUnit || 'minutes';
 
   const now = new Date();
   let milliseconds = 0;
@@ -268,6 +270,14 @@ function calculateNextStepTime(node: FlowNode): string {
   }
 
   const nextTime = new Date(now.getTime() + milliseconds);
+
+  logger.debug('Calculated next step time for wait node', {
+    node_id: node.id,
+    waitTime,
+    waitUnit,
+    nextTime: nextTime.toISOString(),
+  });
+
   return nextTime.toISOString();
 }
 
