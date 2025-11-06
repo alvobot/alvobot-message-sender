@@ -216,7 +216,7 @@ class RunProcessor {
     // Supabase has a default limit of 1000 rows, so we need to paginate
     const subscribers: any[] = [];
     const pageSize = 1000;
-    let page = 0;
+    let pageNumber = 0;
     let hasMore = true;
 
     while (hasMore) {
@@ -225,12 +225,12 @@ class RunProcessor {
         .select('page_id::text, user_id::text')
         .eq('page_id', pageId)
         .eq('is_active', true)
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+        .range(pageNumber * pageSize, (pageNumber + 1) * pageSize - 1);
 
       if (error) {
         logger.error('Failed to fetch subscribers', {
           page_id: pageId,
-          page,
+          pageNumber,
           error: error.message,
         });
         return;
@@ -241,11 +241,11 @@ class RunProcessor {
       } else {
         subscribers.push(...data);
         hasMore = data.length === pageSize; // If we got a full page, there might be more
-        page++;
+        pageNumber++;
 
         logger.debug('Fetched subscriber page', {
           page_id: pageId,
-          page: page,
+          pageNumber: pageNumber,
           count: data.length,
           total_so_far: subscribers.length,
         });
