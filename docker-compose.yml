@@ -31,8 +31,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_postgres_password}
       POSTGRES_DB: ${POSTGRES_DB:-message_sender}
-    # Note: Port 5432 is NOT exposed externally to avoid conflicts
-    # Use pgAdmin web UI at /pgadmin or SSH tunnel for external access
+    ports:
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
