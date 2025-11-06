@@ -387,7 +387,7 @@ serve(async (req)=>{
         console.log(`[MAIN] Assembled ${result.messages.length} messages, isComplete: ${result.isComplete}`);
         // 3c. Atualizar run
         const { error: updateError } = await supabaseClient.from('message_runs').update({
-          status: result.isComplete ? 'completed' : 'running',
+          status: result.isComplete ? 'finished' : 'running',
           next_step_at: result.nextStepAt,
           next_step_id: result.nextStepId,
           last_step_id: result.lastStepId,

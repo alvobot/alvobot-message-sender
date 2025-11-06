@@ -60,25 +60,26 @@ class RunProcessor {
   private async processPendingRuns() {
     const now = new Date().toISOString();
 
-    // Fetch pending runs from Supabase
+    // Fetch runs that are ready to process
+    // Status nomenclature: queued, running, waiting, finished, failed
     const { data: runs, error } = await supabase
       .from('message_runs')
       .select('*')
-      .in('status', ['pending', 'running'])
+      .in('status', ['queued', 'running', 'waiting'])
       .or(`next_step_at.is.null,next_step_at.lte.${now}`)
       .limit(10); // Process max 10 runs per cycle
 
     if (error) {
-      logger.error('Failed to fetch pending runs', { error: error.message });
+      logger.error('Failed to fetch runs', { error: error.message });
       return;
     }
 
     if (!runs || runs.length === 0) {
-      logger.debug('No pending runs');
+      logger.debug('No runs to process');
       return;
     }
 
-    logger.info(`Found ${runs.length} pending runs to process`);
+    logger.info(`Found ${runs.length} runs to process`);
 
     // Process each run
     for (const run of runs) {
@@ -153,7 +154,7 @@ class RunProcessor {
 
     // Update run status
     const updateData: any = {
-      status: result.isComplete ? 'completed' : 'running',
+      status: result.isComplete ? 'finished' : 'running',
       next_step_id: result.nextStepId,
       next_step_at: result.nextStepAt,
       last_step_id: result.lastStepId,

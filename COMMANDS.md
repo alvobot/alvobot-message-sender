@@ -144,7 +144,7 @@ SERVICE_TYPE=api npm run dev
 ```bash
 # Create test run in Supabase
 psql -h qbmbokpbcyempnaravaw.supabase.co -U postgres \
-  -c "INSERT INTO message_runs (user_id, flow_id, page_ids, status) VALUES ('test', 'test-flow-id', ARRAY[123456789], 'pending');"
+  -c "INSERT INTO message_runs (user_id, flow_id, page_ids, status) VALUES ('test', 'test-flow-id', ARRAY[123456789], 'queued');"
 
 # Monitor Bull Board
 open http://localhost:3100/admin/queues
