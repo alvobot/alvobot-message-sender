@@ -198,25 +198,56 @@ class RunProcessor {
       return;
     }
 
-    // Fetch active subscribers for this page (cast IDs to text to preserve precision)
-    const { data: subscribers, error: subscribersError } = await supabase
-      .from('meta_subscribers')
-      .select('page_id::text, user_id::text')
-      .eq('page_id', pageId)
-      .eq('is_active', true);
+    // Fetch ALL active subscribers for this page (with pagination to handle large lists)
+    // Supabase has a default limit of 1000 rows, so we need to paginate
+    const subscribers: any[] = [];
+    const pageSize = 1000;
+    let page = 0;
+    let hasMore = true;
 
-    if (subscribersError) {
-      logger.error('Failed to fetch subscribers', {
-        page_id: pageId,
-        error: subscribersError.message,
-      });
-      return;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('meta_subscribers')
+        .select('page_id::text, user_id::text')
+        .eq('page_id', pageId)
+        .eq('is_active', true)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) {
+        logger.error('Failed to fetch subscribers', {
+          page_id: pageId,
+          page,
+          error: error.message,
+        });
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false;
+      } else {
+        subscribers.push(...data);
+        hasMore = data.length === pageSize; // If we got a full page, there might be more
+        page++;
+
+        logger.debug('Fetched subscriber page', {
+          page_id: pageId,
+          page: page,
+          count: data.length,
+          total_so_far: subscribers.length,
+        });
+      }
     }
 
-    if (!subscribers || subscribers.length === 0) {
+    if (subscribers.length === 0) {
       logger.warn('No active subscribers for page', { page_id: pageId });
       return;
     }
+
+    logger.info('Fetched all subscribers for page', {
+      page_id: pageId,
+      total_subscribers: subscribers.length,
+      pages_fetched: page,
+    });
 
     logger.info(`Enqueuing messages for page ${pageId}`, {
       subscribers_count: subscribers.length,
