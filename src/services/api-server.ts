@@ -5,7 +5,6 @@ import express, { Request, Response } from 'express';
 import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
-import { createProxyMiddleware } from 'http-proxy-middleware';
 import messageQueue from '../queues/message-queue';
 import facebookClient from '../integrations/facebook-client';
 import circuitBreaker from '../integrations/circuit-breaker';
@@ -36,18 +35,6 @@ class ApiServer {
       });
       next();
     });
-
-    // Proxy /pgadmin to pgadmin service
-    // Keep /pgadmin prefix since SCRIPT_NAME is set
-    this.app.use(
-      '/pgadmin',
-      createProxyMiddleware({
-        target: 'http://pgadmin:80',
-        changeOrigin: true,
-        ws: true,
-        // Do NOT use pathRewrite - keep the /pgadmin prefix for SCRIPT_NAME
-      })
-    );
   }
 
   private setupRoutes() {
@@ -178,6 +165,74 @@ class ApiServer {
         });
       } catch (error: any) {
         res.status(500).json({ error: error.message });
+      }
+    });
+
+    // Run statistics - detailed stats for a specific run
+    this.app.get('/stats/run/:runId', async (req: Request, res: Response) => {
+      try {
+        const { default: pool } = await import('../database/postgres');
+        const runId = parseInt(req.params.runId);
+
+        if (isNaN(runId)) {
+          return res.status(400).json({ error: 'Invalid run_id' });
+        }
+
+        // Get stats from database
+        const statsQuery = `
+          SELECT
+            COUNT(*) as total_attempts,
+            COUNT(*) FILTER (WHERE status = 'sent') as successful,
+            COUNT(*) FILTER (WHERE status = 'failed') as failed,
+            COUNT(*) FILTER (WHERE status = 'pending') as pending
+          FROM message_logs.message_logs
+          WHERE run_id = $1
+        `;
+
+        const errorBreakdownQuery = `
+          SELECT
+            error_code,
+            error_message,
+            COUNT(*) as count
+          FROM message_logs.message_logs
+          WHERE run_id = $1 AND status = 'failed'
+          GROUP BY error_code, error_message
+          ORDER BY count DESC
+        `;
+
+        const [statsResult, errorResult] = await Promise.all([
+          pool.query(statsQuery, [runId]),
+          pool.query(errorBreakdownQuery, [runId]),
+        ]);
+
+        const stats = statsResult.rows[0];
+
+        // Get queue stats for this run (jobs still waiting/active)
+        const jobs = await messageQueue.getJobs(['waiting', 'active', 'delayed']);
+        const runJobs = jobs.filter((job: any) => job.data.runId === runId);
+
+        return res.json({
+          run_id: runId,
+          total_attempts: parseInt(stats.total_attempts) || 0,
+          successful: parseInt(stats.successful) || 0,
+          failed: parseInt(stats.failed) || 0,
+          pending: parseInt(stats.pending) || 0,
+          success_rate: stats.total_attempts > 0
+            ? ((parseInt(stats.successful) / parseInt(stats.total_attempts)) * 100).toFixed(2) + '%'
+            : '0%',
+          error_breakdown: errorResult.rows.map(row => ({
+            error_code: row.error_code,
+            error_message: row.error_message,
+            count: parseInt(row.count),
+          })),
+          queue: {
+            waiting: runJobs.filter((j: any) => j.state === 'waiting').length,
+            active: runJobs.filter((j: any) => j.state === 'active').length,
+            delayed: runJobs.filter((j: any) => j.state === 'delayed').length,
+          },
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: error.message });
       }
     });
 

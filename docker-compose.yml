@@ -210,34 +210,6 @@ services:
       API_ENABLE_BULL_BOARD: ${API_ENABLE_BULL_BOARD}
       LOG_LEVEL: ${LOG_LEVEL}
 
-  # ===========================================
-  # PGADMIN SERVICE
-  # Web UI for PostgreSQL database management
-  # Access at: https://message.s3.alvobot.com/pgadmin
-  # ===========================================
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_postgres_password}
-      SCRIPT_NAME: /pgadmin
-    depends_on:
-      - postgres
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-      - ./pgadmin-servers.json:/pgadmin4/servers.json:ro
-    entrypoint: >
-      /bin/sh -c "
-      mkdir -p /tmp;
-      echo 'postgres:5432:*:postgres:'$$POSTGRES_PASSWORD > /tmp/pgpassfile;
-      chmod 600 /tmp/pgpassfile;
-      /entrypoint.sh
-      "
-
 # ===========================================
 # VOLUMES
 # ===========================================
@@ -245,8 +217,6 @@ volumes:
   redis_data:
     driver: local
   postgres_data:
-    driver: local
-  pgadmin_data:
     driver: local
 
 # ===========================================
