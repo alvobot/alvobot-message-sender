@@ -62,11 +62,14 @@ class RunProcessor {
 
     // Fetch runs that are ready to process
     // Status nomenclature: queued, running, waiting, finished, failed
+    // For 'queued': check start_at (when campaign should start)
+    // For 'waiting': check next_step_at (when to process next node after wait)
+    // For 'running': check next_step_at (for re-processing if needed)
     const { data: runs, error } = await supabase
       .from('message_runs')
       .select('*')
       .in('status', ['queued', 'running', 'waiting'])
-      .or(`next_step_at.is.null,next_step_at.lte.${now}`)
+      .or(`start_at.is.null,start_at.lte.${now},next_step_at.is.null,next_step_at.lte.${now}`)
       .limit(10); // Process max 10 runs per cycle
 
     if (error) {
@@ -153,8 +156,18 @@ class RunProcessor {
     }
 
     // Update run status
+    // If complete -> 'finished'
+    // If has nextStepAt (waiting for time) -> 'waiting'
+    // Otherwise -> 'running'
+    let newStatus = 'running';
+    if (result.isComplete) {
+      newStatus = 'finished';
+    } else if (result.nextStepAt) {
+      newStatus = 'waiting';
+    }
+
     const updateData: any = {
-      status: result.isComplete ? 'finished' : 'running',
+      status: newStatus,
       next_step_id: result.nextStepId,
       next_step_at: result.nextStepAt,
       last_step_id: result.lastStepId,
