@@ -134,6 +134,8 @@ class RunProcessor {
       messages_count: result.messages.length,
       is_complete: result.isComplete,
       next_step_id: result.nextStepId,
+      next_step_at: result.nextStepAt,
+      last_step_id: result.lastStepId,
     });
 
     // Transform page_ids array
