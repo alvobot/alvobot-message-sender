@@ -62,14 +62,14 @@ class RunProcessor {
 
     // Fetch runs that are ready to process
     // Status nomenclature: queued, running, waiting, finished, failed
-    // For 'queued': check start_at (when campaign should start)
-    // For 'waiting': check next_step_at (when to process next node after wait)
-    // For 'running': check next_step_at (for re-processing if needed)
+    //
+    // Important: For 'waiting' status, ONLY process if next_step_at has arrived
+    // For 'queued' status, process if start_at has arrived or is null
+    // For 'running' status, process if next_step_at has arrived or is null
     const { data: runs, error } = await supabase
       .from('message_runs')
       .select('*')
       .in('status', ['queued', 'running', 'waiting'])
-      .or(`start_at.is.null,start_at.lte.${now},next_step_at.is.null,next_step_at.lte.${now}`)
       .limit(10); // Process max 10 runs per cycle
 
     if (error) {
@@ -82,10 +82,36 @@ class RunProcessor {
       return;
     }
 
-    logger.info(`Found ${runs.length} runs to process`);
+    // Filter runs based on time conditions
+    const readyRuns = runs.filter((run) => {
+      if (run.status === 'queued') {
+        // Process if start_at is null or has passed
+        return !run.start_at || new Date(run.start_at) <= new Date(now);
+      } else if (run.status === 'waiting') {
+        // IMPORTANT: Only process if next_step_at has arrived
+        return run.next_step_at && new Date(run.next_step_at) <= new Date(now);
+      } else if (run.status === 'running') {
+        // Process if next_step_at is null or has passed
+        return !run.next_step_at || new Date(run.next_step_at) <= new Date(now);
+      }
+      return false;
+    });
 
-    // Process each run
-    for (const run of runs) {
+    if (readyRuns.length === 0) {
+      logger.debug('No runs ready to process', {
+        total_fetched: runs.length,
+        filtered_out: runs.length,
+      });
+      return;
+    }
+
+    logger.info(`Found ${readyRuns.length} runs to process`, {
+      total_fetched: runs.length,
+      ready: readyRuns.length,
+    });
+
+    // Process each ready run
+    for (const run of readyRuns) {
       try {
         await this.processRun(run as MessageRun);
       } catch (error: any) {
@@ -180,9 +206,27 @@ class RunProcessor {
       updateData.completed_at = new Date().toISOString();
     }
 
-    await supabase.from('message_runs').update(updateData).eq('id', run.id);
+    logger.info(`Updating run ${run.id}`, {
+      status: newStatus,
+      next_step_id: result.nextStepId,
+      next_step_at: result.nextStepAt,
+      last_step_id: result.lastStepId,
+    });
 
-    logger.info(`Run ${run.id} updated`, {
+    const { data: updateResult, error: updateError } = await supabase
+      .from('message_runs')
+      .update(updateData)
+      .eq('id', run.id);
+
+    if (updateError) {
+      logger.error(`Failed to update run ${run.id}`, {
+        error: updateError.message,
+        updateData,
+      });
+      throw new Error(`Failed to update run: ${updateError.message}`);
+    }
+
+    logger.info(`Run ${run.id} updated successfully`, {
       status: updateData.status,
       next_step_at: updateData.next_step_at,
     });
