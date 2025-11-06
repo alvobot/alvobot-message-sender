@@ -57,7 +57,7 @@ class FacebookClient {
   }
 
   /**
-   * Send a message to Facebook Messenger API
+   * Send a message to Facebook Messenger API (or debug endpoint if DEBUG=true)
    */
   async sendMessage(
     pageAccessToken: string,
@@ -68,16 +68,31 @@ class FacebookClient {
     const statsBefore = this.agent.getCurrentStatus();
     const startTime = Date.now();
 
+    // Use debug endpoint if DEBUG mode is enabled
+    const isDebugMode = env.debug.enabled && env.debug.postLink;
+    const endpoint = isDebugMode
+      ? env.debug.postLink!
+      : 'https://graph.facebook.com/v21.0/me/messages';
+
+    if (isDebugMode) {
+      logger.info('🐛 DEBUG MODE: Sending to debug endpoint instead of Meta API', {
+        debug_endpoint: endpoint,
+        recipient_id: recipientId,
+      });
+    }
+
     try {
+      const payload = {
+        recipient: { id: recipientId },
+        ...message, // Spread message object (contains messaging_type, tag, message)
+      };
+
       const response = await this.axiosInstance.post<FacebookApiResponse>(
-        'https://graph.facebook.com/v21.0/me/messages',
-        {
-          recipient: { id: recipientId },
-          ...message, // Spread message object (contains messaging_type, tag, message)
-        },
-        {
-          params: { access_token: pageAccessToken },
-        }
+        endpoint,
+        payload,
+        isDebugMode
+          ? {} // No params for debug endpoint
+          : { params: { access_token: pageAccessToken } }
       );
 
       const duration = Date.now() - startTime;
@@ -85,17 +100,26 @@ class FacebookClient {
 
       const socketReused = (Number(statsBefore.sockets) || 0) > 0;
 
+      // In debug mode, the response might not have message_id/recipient_id
+      const messageId = isDebugMode
+        ? `debug_${Date.now()}_${recipientId}`
+        : response.data.message_id;
+      const responseRecipientId = isDebugMode
+        ? recipientId
+        : response.data.recipient_id;
+
       logger.debug('Message sent successfully', {
         recipient_id: recipientId,
-        message_id: response.data.message_id,
+        message_id: messageId,
         duration_ms: duration,
         socket_reused: socketReused,
+        debug_mode: isDebugMode,
       });
 
       return {
         success: true,
-        messageId: response.data.message_id,
-        recipientId: response.data.recipient_id,
+        messageId: messageId,
+        recipientId: responseRecipientId,
         stats: {
           duration_ms: duration,
           socket_reused: socketReused,

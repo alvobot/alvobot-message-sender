@@ -67,6 +67,12 @@ interface EnvironmentConfig {
     port: number;
     enableBullBoard: boolean;
   };
+
+  // Debug
+  debug: {
+    enabled: boolean;
+    postLink: string | null;
+  };
 }
 
 function getEnv(key: string, defaultValue?: string): string {
@@ -154,6 +160,12 @@ export const env: EnvironmentConfig = {
   api: {
     port: getEnvNumber('API_PORT', 3000),
     enableBullBoard: getEnvBoolean('API_ENABLE_BULL_BOARD', true),
+  },
+
+  // Debug
+  debug: {
+    enabled: getEnvBoolean('DEBUG', false),
+    postLink: process.env.DEBUG_POST_LINK || null,
   },
 };
 
