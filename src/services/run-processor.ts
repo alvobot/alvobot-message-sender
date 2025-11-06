@@ -213,7 +213,7 @@ class RunProcessor {
       last_step_id: result.lastStepId,
     });
 
-    const { data: updateResult, error: updateError } = await supabase
+    const { error: updateError } = await supabase
       .from('message_runs')
       .update(updateData)
       .eq('id', run.id);
