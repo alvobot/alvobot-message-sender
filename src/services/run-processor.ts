@@ -141,6 +141,26 @@ class RunProcessor {
       next_step_id: run.next_step_id,
     });
 
+    // IMPORTANT: Immediately mark as 'running' to prevent duplicate processing
+    // This is critical for runs with many subscribers that take time to enqueue
+    if (run.status === 'queued') {
+      const { error: lockError } = await supabase
+        .from('message_runs')
+        .update({
+          status: 'running',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', run.id)
+        .eq('status', 'queued'); // Only update if still queued (optimistic locking)
+
+      if (lockError) {
+        logger.error(`Failed to lock run ${run.id}`, { error: lockError.message });
+        throw new Error(`Failed to lock run: ${lockError.message}`);
+      }
+
+      logger.info(`Run ${run.id} locked (queued -> running)`);
+    }
+
     // Fetch flow
     const { data: flow, error: flowError } = await supabase
       .from('message_flows')
