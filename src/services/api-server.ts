@@ -217,17 +217,9 @@ class ApiServer {
         const stats = statsResult.rows[0];
         const subscribers = subscribersResult.rows[0];
 
-        // Get queue stats for this run (jobs still waiting/active)
-        // BullMQ getJobs returns jobs separated by state already
-        const [waitingJobs, activeJobs, delayedJobs] = await Promise.all([
-          messageQueue.getJobs(['waiting']),
-          messageQueue.getJobs(['active']),
-          messageQueue.getJobs(['delayed']),
-        ]);
-
-        const runWaitingJobs = waitingJobs.filter((job: any) => job.data?.runId === runId);
-        const runActiveJobs = activeJobs.filter((job: any) => job.data?.runId === runId);
-        const runDelayedJobs = delayedJobs.filter((job: any) => job.data?.runId === runId);
+        // Get queue stats - OPTIMIZATION: use counts only, don't fetch all jobs
+        // Fetching all jobs when there are 100k+ is too expensive and slow
+        const counts = await messageQueue.getJobCounts('waiting', 'active', 'delayed');
 
         return res.json({
           run_id: runId,
@@ -245,9 +237,11 @@ class ApiServer {
             count: parseInt(row.count),
           })),
           queue: {
-            waiting: runWaitingJobs.length,
-            active: runActiveJobs.length,
-            delayed: runDelayedJobs.length,
+            // Note: These are TOTAL queue counts, not specific to this run
+            // Filtering by runId would require fetching all jobs which is too slow
+            waiting: counts.waiting || 0,
+            active: counts.active || 0,
+            delayed: counts.delayed || 0,
           },
         });
       } catch (error: any) {

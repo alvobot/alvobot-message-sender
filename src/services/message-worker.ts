@@ -148,8 +148,15 @@ class MessageWorkerService {
         });
 
         // Deactivate subscriber if error 551 (user not available)
+        // Run async without await to not block job processing
         if (shouldDeactivateSubscriber(result.error.code)) {
-          await this.deactivateSubscriber(pageId, userId);
+          this.deactivateSubscriber(pageId, userId).catch((err) => {
+            logger.error('Background deactivation failed', {
+              page_id: pageId,
+              user_id: userId,
+              error: err.message,
+            });
+          });
         }
       } else {
         // Retry other errors
