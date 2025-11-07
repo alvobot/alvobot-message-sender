@@ -89,6 +89,14 @@ export function isAuthError(errorCode: string): boolean {
 }
 
 /**
+ * Check if an error should deactivate the subscriber
+ * Error 551: This person isn't available right now
+ */
+export function shouldDeactivateSubscriber(errorCode: string): boolean {
+  return errorCode === '551';
+}
+
+/**
  * Format bytes to human-readable string
  */
 export function formatBytes(bytes: number, decimals: number = 2): string {

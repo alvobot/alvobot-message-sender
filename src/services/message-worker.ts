@@ -10,7 +10,8 @@ import logBatchWriter from '../database/log-batch-writer';
 import logger from '../utils/logger';
 import env from '../config/env';
 import { QueueMessagePayload, MessageLog } from '../types';
-import { isRateLimitError, isPermanentError, isAuthError } from '../utils/helpers';
+import { isRateLimitError, isPermanentError, isAuthError, shouldDeactivateSubscriber } from '../utils/helpers';
+import { supabase } from '../database/supabase';
 
 class MessageWorkerService {
   private worker: Worker<QueueMessagePayload> | null = null;
@@ -145,6 +146,11 @@ class MessageWorkerService {
           error_code: result.error.code,
           error_message: result.error.message,
         });
+
+        // Deactivate subscriber if error 551 (user not available)
+        if (shouldDeactivateSubscriber(result.error.code)) {
+          await this.deactivateSubscriber(pageId, userId);
+        }
       } else {
         // Retry other errors
         logger.warn('Retrying job due to error', {
@@ -167,6 +173,42 @@ class MessageWorkerService {
     await logBatchWriter.add(logEntry);
 
     return result;
+  }
+
+  /**
+   * Deactivate a subscriber in the database
+   * Called when error 551 (user not available) is received
+   */
+  private async deactivateSubscriber(pageId: string, userId: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('meta_subscribers')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('page_id', pageId)
+        .eq('user_id', userId);
+
+      if (error) {
+        logger.error('Failed to deactivate subscriber', {
+          page_id: pageId,
+          user_id: userId,
+          error: error.message,
+        });
+      } else {
+        logger.info('Subscriber deactivated due to error 551', {
+          page_id: pageId,
+          user_id: userId,
+        });
+      }
+    } catch (error: any) {
+      logger.error('Exception deactivating subscriber', {
+        page_id: pageId,
+        user_id: userId,
+        error: error.message,
+      });
+    }
   }
 }
 
