@@ -281,41 +281,112 @@ class ApiServer {
           return res.status(400).json({ error: 'Invalid run_id' });
         }
 
-        // Get jobs from waiting and delayed states
-        const [waitingJobs, delayedJobs] = await Promise.all([
-          messageQueue.getJobs(['waiting']),
-          messageQueue.getJobs(['delayed']),
-        ]);
+        logger.info('Starting job deletion for run', { run_id: runId });
 
-        const allJobs = [...waitingJobs, ...delayedJobs];
-        const jobsToDelete = allJobs.filter((job: any) => job.data?.runId === runId);
-
-        if (jobsToDelete.length === 0) {
-          return res.json({
-            run_id: runId,
-            deleted: 0,
-            message: 'No jobs found for this run',
-          });
-        }
-
-        // Delete each job
+        // OPTIMIZATION: Process in batches to avoid memory issues with large queues (1M+ jobs)
         let deleted = 0;
         let failed = 0;
-        for (const job of jobsToDelete) {
+        let scanned = 0;
+        const batchSize = 1000; // Process 1000 jobs at a time
+
+        // Process waiting jobs in batches
+        let start = 0;
+        let hasMore = true;
+
+        while (hasMore) {
           try {
-            await job.remove();
-            deleted++;
+            // Get batch of waiting jobs (start, end indices)
+            const jobs = await messageQueue.getJobs(['waiting'], start, start + batchSize - 1);
+
+            if (!jobs || jobs.length === 0) {
+              break;
+            }
+
+            scanned += jobs.length;
+
+            // Filter and delete jobs for this run
+            for (const job of jobs) {
+              if (job?.data?.runId === runId) {
+                try {
+                  await job.remove();
+                  deleted++;
+                } catch (error: any) {
+                  failed++;
+                  logger.error('Failed to delete job', {
+                    job_id: job.id,
+                    error: error.message,
+                  });
+                }
+              }
+            }
+
+            // If we got less than batchSize, we're done
+            if (jobs.length < batchSize) {
+              hasMore = false;
+            } else {
+              start += batchSize;
+            }
+
+            // Log progress every 10k jobs
+            if (scanned % 10000 === 0) {
+              logger.info('Job deletion progress', {
+                run_id: runId,
+                scanned,
+                deleted,
+                failed,
+              });
+            }
           } catch (error: any) {
-            failed++;
-            logger.error('Failed to delete job', {
-              job_id: job.id,
+            logger.error('Error processing batch', {
+              start,
               error: error.message,
             });
+            hasMore = false;
           }
         }
 
-        logger.info('Jobs deleted for run', {
+        // Also check delayed jobs
+        start = 0;
+        hasMore = true;
+
+        while (hasMore) {
+          try {
+            const jobs = await messageQueue.getJobs(['delayed'], start, start + batchSize - 1);
+
+            if (!jobs || jobs.length === 0) {
+              break;
+            }
+
+            scanned += jobs.length;
+
+            for (const job of jobs) {
+              if (job?.data?.runId === runId) {
+                try {
+                  await job.remove();
+                  deleted++;
+                } catch (error: any) {
+                  failed++;
+                }
+              }
+            }
+
+            if (jobs.length < batchSize) {
+              hasMore = false;
+            } else {
+              start += batchSize;
+            }
+          } catch (error: any) {
+            logger.error('Error processing delayed batch', {
+              start,
+              error: error.message,
+            });
+            hasMore = false;
+          }
+        }
+
+        logger.info('Job deletion completed', {
           run_id: runId,
+          scanned,
           deleted,
           failed,
         });
@@ -324,7 +395,8 @@ class ApiServer {
           run_id: runId,
           deleted,
           failed,
-          total_found: jobsToDelete.length,
+          scanned,
+          message: deleted === 0 ? 'No jobs found for this run' : `Deleted ${deleted} jobs`,
         });
       } catch (error: any) {
         logger.error('Error deleting jobs', { error: error.message });
