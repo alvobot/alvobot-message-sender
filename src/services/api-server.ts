@@ -272,6 +272,66 @@ class ApiServer {
       res.json(stats);
     });
 
+    // Delete jobs for a specific run
+    this.app.delete('/admin/runs/:runId/jobs', async (req: Request, res: Response) => {
+      try {
+        const runId = parseInt(req.params.runId);
+
+        if (isNaN(runId)) {
+          return res.status(400).json({ error: 'Invalid run_id' });
+        }
+
+        // Get jobs from waiting and delayed states
+        const [waitingJobs, delayedJobs] = await Promise.all([
+          messageQueue.getJobs(['waiting']),
+          messageQueue.getJobs(['delayed']),
+        ]);
+
+        const allJobs = [...waitingJobs, ...delayedJobs];
+        const jobsToDelete = allJobs.filter((job: any) => job.data?.runId === runId);
+
+        if (jobsToDelete.length === 0) {
+          return res.json({
+            run_id: runId,
+            deleted: 0,
+            message: 'No jobs found for this run',
+          });
+        }
+
+        // Delete each job
+        let deleted = 0;
+        let failed = 0;
+        for (const job of jobsToDelete) {
+          try {
+            await job.remove();
+            deleted++;
+          } catch (error: any) {
+            failed++;
+            logger.error('Failed to delete job', {
+              job_id: job.id,
+              error: error.message,
+            });
+          }
+        }
+
+        logger.info('Jobs deleted for run', {
+          run_id: runId,
+          deleted,
+          failed,
+        });
+
+        return res.json({
+          run_id: runId,
+          deleted,
+          failed,
+          total_found: jobsToDelete.length,
+        });
+      } catch (error: any) {
+        logger.error('Error deleting jobs', { error: error.message });
+        return res.status(500).json({ error: error.message });
+      }
+    });
+
     // Network diagnostics - test connection to multiple endpoints
     this.app.get('/diagnostics/network', async (_req: Request, res: Response) => {
       const axios = require('axios');
