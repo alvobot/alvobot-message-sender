@@ -200,16 +200,34 @@ class ApiServer {
           ORDER BY count DESC
         `;
 
-        const [statsResult, errorResult] = await Promise.all([
+        // Count unique subscribers who received at least one successful message
+        const uniqueSubscribersQuery = `
+          SELECT
+            COUNT(DISTINCT user_id) as unique_subscribers
+          FROM message_logs.message_logs
+          WHERE run_id = $1 AND status = 'sent'
+        `;
+
+        const [statsResult, errorResult, subscribersResult] = await Promise.all([
           pool.query(statsQuery, [runId]),
           pool.query(errorBreakdownQuery, [runId]),
+          pool.query(uniqueSubscribersQuery, [runId]),
         ]);
 
         const stats = statsResult.rows[0];
+        const subscribers = subscribersResult.rows[0];
 
         // Get queue stats for this run (jobs still waiting/active)
-        const jobs = await messageQueue.getJobs(['waiting', 'active', 'delayed']);
-        const runJobs = jobs.filter((job: any) => job.data.runId === runId);
+        // BullMQ getJobs returns jobs separated by state already
+        const [waitingJobs, activeJobs, delayedJobs] = await Promise.all([
+          messageQueue.getJobs(['waiting']),
+          messageQueue.getJobs(['active']),
+          messageQueue.getJobs(['delayed']),
+        ]);
+
+        const runWaitingJobs = waitingJobs.filter((job: any) => job.data?.runId === runId);
+        const runActiveJobs = activeJobs.filter((job: any) => job.data?.runId === runId);
+        const runDelayedJobs = delayedJobs.filter((job: any) => job.data?.runId === runId);
 
         return res.json({
           run_id: runId,
@@ -217,6 +235,7 @@ class ApiServer {
           successful: parseInt(stats.successful) || 0,
           failed: parseInt(stats.failed) || 0,
           pending: parseInt(stats.pending) || 0,
+          unique_subscribers: parseInt(subscribers.unique_subscribers) || 0,
           success_rate: stats.total_attempts > 0
             ? ((parseInt(stats.successful) / parseInt(stats.total_attempts)) * 100).toFixed(2) + '%'
             : '0%',
@@ -226,9 +245,9 @@ class ApiServer {
             count: parseInt(row.count),
           })),
           queue: {
-            waiting: runJobs.filter((j: any) => j.state === 'waiting').length,
-            active: runJobs.filter((j: any) => j.state === 'active').length,
-            delayed: runJobs.filter((j: any) => j.state === 'delayed').length,
+            waiting: runWaitingJobs.length,
+            active: runActiveJobs.length,
+            delayed: runDelayedJobs.length,
           },
         });
       } catch (error: any) {

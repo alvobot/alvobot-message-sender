@@ -36,7 +36,7 @@ class MessageWorkerService {
     );
 
     // Worker event handlers
-    this.worker.on('completed', (job, result) => {
+    this.worker.on('completed', async (job, result) => {
       logger.debug('Job completed', {
         job_id: job.id,
         run_id: job.data.runId,
@@ -44,9 +44,12 @@ class MessageWorkerService {
         user_id: job.data.userId,
         success: result.success,
       });
+
+      // Check if all jobs for this run are completed
+      await this.checkRunCompletion(job.data.runId);
     });
 
-    this.worker.on('failed', (job, error) => {
+    this.worker.on('failed', async (job, error) => {
       logger.error('Job failed permanently', {
         job_id: job?.id,
         run_id: job?.data.runId,
@@ -55,6 +58,11 @@ class MessageWorkerService {
         error: error.message,
         attempts: job?.attemptsMade,
       });
+
+      // Check if all jobs for this run are completed (including failed ones)
+      if (job?.data.runId) {
+        await this.checkRunCompletion(job.data.runId);
+      }
     });
 
     this.worker.on('error', (error) => {
@@ -173,6 +181,51 @@ class MessageWorkerService {
     await logBatchWriter.add(logEntry);
 
     return result;
+  }
+
+  /**
+   * Check if all jobs for a run are completed and update completed_at
+   */
+  private async checkRunCompletion(runId: number): Promise<void> {
+    try {
+      const { default: messageQueue } = await import('../queues/message-queue');
+
+      // Get all jobs for this run that are still pending
+      const [waiting, active, delayed] = await Promise.all([
+        messageQueue.getJobs(['waiting']),
+        messageQueue.getJobs(['active']),
+        messageQueue.getJobs(['delayed']),
+      ]);
+
+      const allPendingJobs = [...waiting, ...active, ...delayed];
+      const runPendingJobs = allPendingJobs.filter((job: any) => job.data.runId === runId);
+
+      // If no more pending jobs for this run, mark as completed
+      if (runPendingJobs.length === 0) {
+        const { error } = await supabase
+          .from('message_runs')
+          .update({ completed_at: new Date().toISOString() })
+          .eq('id', runId)
+          .is('completed_at', null); // Only update if not already set
+
+        if (error) {
+          logger.error('Failed to update completed_at', {
+            run_id: runId,
+            error: error.message,
+          });
+        } else {
+          logger.info('✅ Run completed - all messages sent', {
+            run_id: runId,
+            completed_at: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (error: any) {
+      logger.error('Error checking run completion', {
+        run_id: runId,
+        error: error.message,
+      });
+    }
   }
 
   /**
