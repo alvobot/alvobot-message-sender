@@ -31,6 +31,7 @@ interface TriggerRun {
 class TriggerRunProcessor {
   private pollIntervalMs: number;
   private isRunning = false;
+  private isProcessing = false;
   private pollTimer: NodeJS.Timeout | null = null;
 
   constructor() {
@@ -66,10 +67,22 @@ class TriggerRunProcessor {
   private async poll() {
     if (!this.isRunning) return;
 
+    // Prevent concurrent processing - skip if previous poll is still running
+    if (this.isProcessing) {
+      logger.warn('Previous poll cycle still running, skipping this cycle', {
+        poll_interval_ms: this.pollIntervalMs,
+      });
+      this.pollTimer = setTimeout(() => this.poll(), this.pollIntervalMs);
+      return;
+    }
+
     try {
+      this.isProcessing = true;
       await this.processPendingTriggerRuns();
     } catch (error: any) {
       logger.error('Error in trigger poll cycle', { error: error.message });
+    } finally {
+      this.isProcessing = false;
     }
 
     // Schedule next poll
