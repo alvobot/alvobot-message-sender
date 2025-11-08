@@ -80,16 +80,20 @@ class TriggerRunProcessor {
     const now = new Date().toISOString();
 
     // Fetch trigger_runs that are ready to process
-    // Status nomenclature: queued, running, waiting, finished, failed
+    // OPTIMIZATION: Filter by time conditions directly in SQL query instead of
+    // fetching all and filtering in code. This is much more efficient.
     //
-    // Important: For 'waiting' status, ONLY process if next_step_at has arrived
-    // For 'queued' status, process if start_at has arrived or is null
-    // For 'running' status, process if next_step_at has arrived or is null
+    // Status nomenclature: queued, running, waiting, finished, failed
     const { data: runs, error } = await supabase
       .from('trigger_runs')
       .select('*')
-      .in('status', ['queued', 'running', 'waiting'])
-      .limit(10); // Process max 10 trigger runs per cycle
+      .or(
+        `and(status.eq.queued,or(start_at.is.null,start_at.lte.${now})),` +
+        `and(status.eq.waiting,next_step_at.lte.${now}),` +
+        `and(status.eq.running,or(next_step_at.is.null,next_step_at.lte.${now}))`
+      )
+      .order('created_at', { ascending: true })
+      .limit(1000); // Process up to 1000 ready trigger runs per cycle
 
     if (error) {
       logger.error('Failed to fetch trigger runs', { error: error.message });
@@ -97,39 +101,16 @@ class TriggerRunProcessor {
     }
 
     if (!runs || runs.length === 0) {
-      logger.debug('No trigger runs to process');
+      logger.debug('No trigger runs ready to process');
       return;
     }
 
-    // Filter runs based on time conditions
-    const readyRuns = runs.filter((run: TriggerRun) => {
-      if (run.status === 'queued') {
-        // Process if start_at is null or has passed
-        return !run.start_at || new Date(run.start_at) <= new Date(now);
-      } else if (run.status === 'waiting') {
-        // IMPORTANT: Only process if next_step_at has arrived
-        return run.next_step_at && new Date(run.next_step_at) <= new Date(now);
-      } else if (run.status === 'running') {
-        // Process if next_step_at is null or has passed
-        return !run.next_step_at || new Date(run.next_step_at) <= new Date(now);
-      }
-      return false;
-    });
-
-    if (readyRuns.length === 0) {
-      logger.debug('No trigger runs ready to process yet', {
-        total_runs: runs.length,
-      });
-      return;
-    }
-
-    logger.info(`Processing ${readyRuns.length} trigger runs`, {
-      ready_runs: readyRuns.length,
-      total_runs: runs.length,
+    logger.info(`Processing ${runs.length} trigger runs`, {
+      trigger_runs_count: runs.length,
     });
 
     // Process each run
-    for (const run of readyRuns) {
+    for (const run of runs) {
       try {
         await this.processTriggerRun(run);
       } catch (error: any) {
