@@ -242,17 +242,20 @@ class TriggerRunProcessor {
     const startNode = run.last_step_id || 'start';
     const result = await assembleMessages(flow, startNode);
 
+    // Ensure messages array exists
+    const messages = result.messages || [];
+
     logger.info('Flow processed for trigger run', {
       trigger_run_id: run.id,
       flow_id: flow.id,
-      messages_count: result.messages.length,
+      messages_count: messages.length,
       is_complete: result.isComplete,
       next_step_id: result.nextStepId,
       next_step_at: result.nextStepAt,
     });
 
     // Enqueue jobs for the single recipient
-    await this.enqueueJobsForTrigger(run, page, flow, result.messages);
+    await this.enqueueJobsForTrigger(run, page, flow, messages);
 
     // Update run status based on flow result
     let newStatus = 'running';
