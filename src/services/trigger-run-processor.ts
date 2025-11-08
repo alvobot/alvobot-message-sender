@@ -238,6 +238,21 @@ class TriggerRunProcessor {
       throw new Error(`Failed to fetch flow ${run.flow_id}: ${flowError?.message}`);
     }
 
+    // Validate flow structure
+    if (!flow.nodes || !Array.isArray(flow.nodes)) {
+      throw new Error(`Flow ${run.flow_id} has invalid or missing nodes array`);
+    }
+
+    if (!flow.connections || !Array.isArray(flow.connections)) {
+      throw new Error(`Flow ${run.flow_id} has invalid or missing connections array`);
+    }
+
+    logger.debug('Flow structure validated', {
+      trigger_run_id: run.id,
+      nodes_count: flow.nodes.length,
+      connections_count: flow.connections.length,
+    });
+
     // Process flow to get messages
     const startNode = run.last_step_id || 'start';
     const result = await assembleMessages(flow, startNode);
