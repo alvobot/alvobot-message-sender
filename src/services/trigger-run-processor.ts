@@ -238,42 +238,27 @@ class TriggerRunProcessor {
       throw new Error(`Failed to fetch flow ${run.flow_id}: ${flowError?.message}`);
     }
 
-    // Parse flow data (Supabase may return JSONB as string)
-    const flow = {
-      ...flowData,
-      nodes: typeof flowData.nodes === 'string'
-        ? JSON.parse(flowData.nodes)
-        : flowData.nodes,
-      connections: typeof flowData.connections === 'string'
-        ? JSON.parse(flowData.connections)
-        : flowData.connections,
-    };
-
-    // Validate flow structure
-    if (!flow.nodes || !Array.isArray(flow.nodes)) {
-      throw new Error(`Flow ${run.flow_id} has invalid or missing nodes array. Type: ${typeof flow.nodes}`);
-    }
-
-    if (!flow.connections || !Array.isArray(flow.connections)) {
-      throw new Error(`Flow ${run.flow_id} has invalid or missing connections array. Type: ${typeof flow.connections}`);
+    // IMPORTANT: Flow structure is nested in flow.flow (same as run-processor)
+    if (!flowData.flow) {
+      throw new Error(`Flow ${run.flow_id} has no flow property`);
     }
 
     logger.debug('Flow structure validated', {
       trigger_run_id: run.id,
-      nodes_count: flow.nodes.length,
-      connections_count: flow.connections.length,
+      nodes_count: flowData.flow.nodes?.length || 0,
+      connections_count: flowData.flow.connections?.length || 0,
     });
 
-    // Process flow to get messages
+    // Process flow to get messages (use flow.flow like run-processor does)
     const startNode = run.last_step_id || 'start';
-    const result = await assembleMessages(flow, startNode);
+    const result = await assembleMessages(flowData.flow, startNode);
 
     // Ensure messages array exists
     const messages = result.messages || [];
 
     logger.info('Flow processed for trigger run', {
       trigger_run_id: run.id,
-      flow_id: flow.id,
+      flow_id: flowData.id,
       messages_count: messages.length,
       is_complete: result.isComplete,
       next_step_id: result.nextStepId,
@@ -281,7 +266,7 @@ class TriggerRunProcessor {
     });
 
     // Enqueue jobs for the single recipient
-    await this.enqueueJobsForTrigger(run, page, flow, messages);
+    await this.enqueueJobsForTrigger(run, page, flowData, messages);
 
     // Update run status based on flow result
     let newStatus = 'running';
