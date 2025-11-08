@@ -228,23 +228,34 @@ class TriggerRunProcessor {
     }
 
     // Fetch flow
-    const { data: flow, error: flowError } = await supabase
+    const { data: flowData, error: flowError } = await supabase
       .from('message_flows')
       .select('*')
       .eq('id', run.flow_id)
       .single();
 
-    if (flowError || !flow) {
+    if (flowError || !flowData) {
       throw new Error(`Failed to fetch flow ${run.flow_id}: ${flowError?.message}`);
     }
 
+    // Parse flow data (Supabase may return JSONB as string)
+    const flow = {
+      ...flowData,
+      nodes: typeof flowData.nodes === 'string'
+        ? JSON.parse(flowData.nodes)
+        : flowData.nodes,
+      connections: typeof flowData.connections === 'string'
+        ? JSON.parse(flowData.connections)
+        : flowData.connections,
+    };
+
     // Validate flow structure
     if (!flow.nodes || !Array.isArray(flow.nodes)) {
-      throw new Error(`Flow ${run.flow_id} has invalid or missing nodes array`);
+      throw new Error(`Flow ${run.flow_id} has invalid or missing nodes array. Type: ${typeof flow.nodes}`);
     }
 
     if (!flow.connections || !Array.isArray(flow.connections)) {
-      throw new Error(`Flow ${run.flow_id} has invalid or missing connections array`);
+      throw new Error(`Flow ${run.flow_id} has invalid or missing connections array. Type: ${typeof flow.connections}`);
     }
 
     logger.debug('Flow structure validated', {
