@@ -170,7 +170,7 @@ export const env: EnvironmentConfig = {
 };
 
 // Validate service type
-const validServiceTypes = ['run-processor', 'message-worker', 'api'];
+const validServiceTypes = ['run-processor', 'trigger-run-processor', 'message-worker', 'api'];
 if (!validServiceTypes.includes(env.serviceType)) {
   throw new Error(
     `Invalid SERVICE_TYPE: ${env.serviceType}. Must be one of: ${validServiceTypes.join(', ')}`
