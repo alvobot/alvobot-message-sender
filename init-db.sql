@@ -27,5 +27,7 @@ CREATE INDEX IF NOT EXISTS idx_status ON message_logs.message_logs(status);
 CREATE INDEX IF NOT EXISTS idx_created_at ON message_logs.message_logs(created_at);
 
 -- Add comments
-COMMENT ON COLUMN message_logs.message_logs.run_id IS 'References message_runs.id for bulk campaigns. NULL for trigger messages.';
-COMMENT ON COLUMN message_logs.message_logs.trigger_run_id IS 'References trigger_runs.id for individual triggers. NULL for bulk campaigns.';
+COMMENT ON COLUMN message_logs.message_logs.run_id IS 'References message_runs.id (Supabase) for bulk campaigns. NULL for trigger messages.';
+COMMENT ON COLUMN message_logs.message_logs.trigger_run_id IS 'References trigger_runs.id (Supabase) for individual triggers. NULL for bulk campaigns.';
+
+-- NOTA: Não criamos foreign keys porque message_runs e trigger_runs ficam no Supabase, não neste banco.

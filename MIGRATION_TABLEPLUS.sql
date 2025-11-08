@@ -12,38 +12,25 @@ BEGIN;
 ALTER TABLE message_logs.message_logs
 ADD COLUMN IF NOT EXISTS trigger_run_id BIGINT NULL;
 
--- 2. Adicionar foreign key constraint (pode dar erro se a constraint já existe, é normal)
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'message_logs_trigger_run_id_fkey'
-  ) THEN
-    ALTER TABLE message_logs.message_logs
-    ADD CONSTRAINT message_logs_trigger_run_id_fkey
-    FOREIGN KEY (trigger_run_id)
-    REFERENCES public.trigger_runs(id)
-    ON DELETE SET NULL;
-  END IF;
-END $$;
-
--- 3. Criar índice para queries eficientes
+-- 2. Criar índice para queries eficientes
 CREATE INDEX IF NOT EXISTS idx_message_logs_trigger_run_id
 ON message_logs.message_logs(trigger_run_id)
 WHERE trigger_run_id IS NOT NULL;
 
--- 4. Atualizar coluna run_id para aceitar NULL (caso ainda não aceite)
+-- 3. Atualizar coluna run_id para aceitar NULL (caso ainda não aceite)
 ALTER TABLE message_logs.message_logs
 ALTER COLUMN run_id DROP NOT NULL;
 
--- 5. Adicionar comentários explicativos
+-- 4. Adicionar comentários explicativos
 COMMENT ON COLUMN message_logs.message_logs.run_id IS
-'References message_runs.id for bulk campaigns. NULL for trigger messages.';
+'References message_runs.id (Supabase) for bulk campaigns. NULL for trigger messages.';
 
 COMMENT ON COLUMN message_logs.message_logs.trigger_run_id IS
-'References trigger_runs.id for individual triggers. NULL for bulk campaigns. Either run_id or trigger_run_id will be populated, but not both.';
+'References trigger_runs.id (Supabase) for individual triggers. NULL for bulk campaigns. Either run_id or trigger_run_id will be populated, but not both.';
 
 COMMIT;
+
+-- NOTA: Não criamos foreign key porque trigger_runs fica no Supabase, não neste banco.
 
 -- ==============================================================================
 -- VERIFICAÇÃO
