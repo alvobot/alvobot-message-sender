@@ -271,10 +271,23 @@ class TriggerRunProcessor {
 
     // Update run status based on flow result
     let newStatus = 'running';
+    let completedAt: string | null = null;
+
     if (result.isComplete) {
       newStatus = 'finished';
+      completedAt = new Date().toISOString();
     } else if (result.nextStepAt) {
       newStatus = 'waiting';
+    } else if (messages.length === 0 && !result.nextStepId) {
+      // If no messages and no next step, mark as finished
+      // This prevents infinite loop when flow has no messages to send
+      newStatus = 'finished';
+      completedAt = new Date().toISOString();
+      logger.warn('Flow returned 0 messages with no next step, marking as finished', {
+        trigger_run_id: run.id,
+        is_complete: result.isComplete,
+        next_step_id: result.nextStepId,
+      });
     }
 
     const { error: updateError } = await supabase
@@ -284,7 +297,7 @@ class TriggerRunProcessor {
         next_step_id: result.nextStepId,
         next_step_at: result.nextStepAt,
         last_step_id: result.lastStepId,
-        completed_at: result.isComplete ? new Date().toISOString() : null,
+        completed_at: completedAt,
         updated_at: new Date().toISOString(),
       })
       .eq('id', run.id);
