@@ -5,7 +5,7 @@ dotenv.config();
 
 interface EnvironmentConfig {
   // Service
-  serviceType: 'run-processor' | 'message-worker' | 'api';
+  serviceType: 'run-processor' | 'trigger-run-processor' | 'message-worker' | 'api';
   nodeEnv: 'development' | 'production' | 'test';
 
   // Redis

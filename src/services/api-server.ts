@@ -10,6 +10,7 @@ import facebookClient from '../integrations/facebook-client';
 import circuitBreaker from '../integrations/circuit-breaker';
 import logBatchWriter from '../database/log-batch-writer';
 import { testPostgresConnection } from '../config/postgres.config';
+import supabase from '../database/supabase';
 import logger from '../utils/logger';
 import env from '../config/env';
 
