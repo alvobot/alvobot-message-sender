@@ -250,19 +250,20 @@ class TriggerRunProcessor {
     });
 
     // Process flow to get messages (use flow.flow like run-processor does)
-    const startNode = run.last_step_id || 'start';
-    const result = await assembleMessages(flowData.flow, startNode);
+    // IMPORTANT: Use next_step_id (not last_step_id) - same as run-processor
+    const result = await assembleMessages(flowData.flow, run.next_step_id);
 
     // Ensure messages array exists
     const messages = result.messages || [];
 
-    logger.info('Flow processed for trigger run', {
+    logger.info('Flow processing complete', {
       trigger_run_id: run.id,
       flow_id: flowData.id,
       messages_count: messages.length,
       is_complete: result.isComplete,
       next_step_id: result.nextStepId,
       next_step_at: result.nextStepAt,
+      last_step_id: result.lastStepId,
     });
 
     // Enqueue jobs for the single recipient
