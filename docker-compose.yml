@@ -99,6 +99,48 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
 
   # ===========================================
+  # TRIGGER RUN PROCESSOR SERVICE
+  # Polls Supabase for pending trigger_runs and enqueues messages
+  # ===========================================
+  trigger-run-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      SERVICE_TYPE: trigger-run-processor
+      NODE_ENV: production
+
+      # Redis
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB}
+
+      # PostgreSQL
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_SCHEMA: ${POSTGRES_SCHEMA}
+
+      # Supabase
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+
+      # Configuration
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS}
+      LOG_LEVEL: ${LOG_LEVEL}
+
+  # ===========================================
   # MESSAGE WORKER SERVICE
   # Consumes queue and sends messages to Facebook
   # ===========================================
