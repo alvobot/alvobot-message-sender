@@ -15,6 +15,11 @@ async function main() {
         await import('./services/run-processor');
         break;
 
+      case 'trigger-run-processor':
+        logger.info('Initializing Trigger Run Processor Service...');
+        await import('./services/trigger-run-processor');
+        break;
+
       case 'message-worker':
         logger.info('Initializing Message Worker Service...');
         await import('./services/message-worker');

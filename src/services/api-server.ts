@@ -249,6 +249,100 @@ class ApiServer {
       }
     });
 
+    // Stats for trigger_runs
+    this.app.get('/stats/trigger-run/:triggerRunId', async (req: Request, res: Response) => {
+      try {
+        const { default: pool } = await import('../database/postgres');
+        const triggerRunId = parseInt(req.params.triggerRunId);
+
+        if (isNaN(triggerRunId)) {
+          return res.status(400).json({ error: 'Invalid trigger_run_id' });
+        }
+
+        // Get trigger_run details
+        const { data: triggerRun, error: triggerRunError } = await supabase
+          .from('trigger_runs')
+          .select('*')
+          .eq('id', triggerRunId)
+          .single();
+
+        if (triggerRunError || !triggerRun) {
+          return res.status(404).json({ error: 'Trigger run not found' });
+        }
+
+        // Get stats from database
+        const statsQuery = `
+          SELECT
+            COUNT(*) as total_attempts,
+            COUNT(*) FILTER (WHERE status = 'sent') as successful,
+            COUNT(*) FILTER (WHERE status = 'failed') as failed,
+            COUNT(*) FILTER (WHERE status = 'pending') as pending
+          FROM message_logs.message_logs
+          WHERE trigger_run_id = $1
+        `;
+
+        const errorBreakdownQuery = `
+          SELECT
+            error_code,
+            error_message,
+            COUNT(*) as count
+          FROM message_logs.message_logs
+          WHERE trigger_run_id = $1 AND status = 'failed'
+          GROUP BY error_code, error_message
+          ORDER BY count DESC
+        `;
+
+        const [statsResult, errorResult] = await Promise.all([
+          pool.query(statsQuery, [triggerRunId]),
+          pool.query(errorBreakdownQuery, [triggerRunId]),
+        ]);
+
+        const stats = statsResult.rows[0];
+
+        // Get queue stats (total, not specific to trigger)
+        const counts = await messageQueue.getJobCounts('waiting', 'active', 'delayed');
+
+        return res.json({
+          trigger_run_id: triggerRunId,
+          trigger_id: triggerRun.trigger_id,
+          recipient_user_id: triggerRun.recipient_user_id,
+          page_id: triggerRun.page_id,
+          flow_id: triggerRun.flow_id,
+          status: triggerRun.status,
+          trigger_context: triggerRun.trigger_context,
+          created_at: triggerRun.created_at,
+          start_at: triggerRun.start_at,
+          completed_at: triggerRun.completed_at,
+          next_step_at: triggerRun.next_step_at,
+          next_step_id: triggerRun.next_step_id,
+          last_step_id: triggerRun.last_step_id,
+          error_details: triggerRun.error_details,
+          stats: {
+            total_attempts: parseInt(stats.total_attempts) || 0,
+            successful: parseInt(stats.successful) || 0,
+            failed: parseInt(stats.failed) || 0,
+            pending: parseInt(stats.pending) || 0,
+            success_rate: stats.total_attempts > 0
+              ? ((parseInt(stats.successful) / parseInt(stats.total_attempts)) * 100).toFixed(2) + '%'
+              : '0%',
+          },
+          error_breakdown: errorResult.rows.map(row => ({
+            error_code: row.error_code,
+            error_message: row.error_message,
+            count: parseInt(row.count),
+          })),
+          queue: {
+            // Note: These are TOTAL queue counts, not specific to this trigger
+            waiting: counts.waiting || 0,
+            active: counts.active || 0,
+            delayed: counts.delayed || 0,
+          },
+        });
+      } catch (error: any) {
+        return res.status(500).json({ error: error.message });
+      }
+    });
+
     // Facebook client stats
     this.app.get('/stats/http-client', (_req: Request, res: Response) => {
       const stats = facebookClient.getStats();

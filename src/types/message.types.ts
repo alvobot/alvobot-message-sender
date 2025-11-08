@@ -1,7 +1,8 @@
 // Message and queue types
 
 export interface QueueMessagePayload {
-  runId: number;
+  runId?: number; // For message_runs (bulk campaigns)
+  triggerRunId?: number; // For trigger_runs (individual triggers)
   flowId: string;
   nodeId: string;
   pageId: string; // Changed from number to string to preserve precision of large IDs
@@ -54,7 +55,8 @@ export interface SendMessageResult {
 }
 
 export interface MessageLog {
-  run_id: number;
+  run_id?: number; // For message_runs (bulk campaigns)
+  trigger_run_id?: number; // For trigger_runs (individual triggers)
   page_id: string; // Changed from number to string to preserve precision of large IDs
   user_id: string;
   status: 'sent' | 'failed' | 'rate_limited' | 'auth_error';

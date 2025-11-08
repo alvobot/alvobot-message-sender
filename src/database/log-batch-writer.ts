@@ -73,13 +73,14 @@ class LogBatchWriter {
       const placeholders: string[] = [];
 
       logsToInsert.forEach((log, index) => {
-        const offset = index * 6;
+        const offset = index * 7;
         placeholders.push(
-          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`
+          `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7})`
         );
 
         values.push(
-          log.run_id,
+          log.run_id || null,
+          log.trigger_run_id || null,
           log.page_id,
           log.user_id,
           log.status,
@@ -89,7 +90,7 @@ class LogBatchWriter {
       });
 
       const query = `
-        INSERT INTO message_logs.message_logs (run_id, page_id, user_id, status, error_code, error_message)
+        INSERT INTO message_logs.message_logs (run_id, trigger_run_id, page_id, user_id, status, error_code, error_message)
         VALUES ${placeholders.join(', ')}
       `;
 

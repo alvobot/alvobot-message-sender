@@ -40,6 +40,7 @@ class MessageWorkerService {
       logger.debug('Job completed', {
         job_id: job.id,
         run_id: job.data.runId,
+        trigger_run_id: job.data.triggerRunId,
         page_id: job.data.pageId,
         user_id: job.data.userId,
         success: result.success,
@@ -50,6 +51,7 @@ class MessageWorkerService {
       logger.error('Job failed permanently', {
         job_id: job?.id,
         run_id: job?.data.runId,
+        trigger_run_id: job?.data.triggerRunId,
         page_id: job?.data.pageId,
         user_id: job?.data.userId,
         error: error.message,
@@ -80,7 +82,7 @@ class MessageWorkerService {
   }
 
   private async processJob(job: Job<QueueMessagePayload>) {
-    const { runId, pageId, userId, pageAccessToken, message } = job.data;
+    const { runId, triggerRunId, pageId, userId, pageAccessToken, message } = job.data;
 
     // Check circuit breaker
     if (circuitBreaker.isCircuitOpen(pageId)) {
@@ -92,6 +94,7 @@ class MessageWorkerService {
       // Log as auth_error
       await logBatchWriter.add({
         run_id: runId,
+        trigger_run_id: triggerRunId,
         page_id: pageId,
         user_id: userId,
         status: 'auth_error',
@@ -112,6 +115,7 @@ class MessageWorkerService {
     // Create log entry
     const logEntry: MessageLog = {
       run_id: runId,
+      trigger_run_id: triggerRunId,
       page_id: pageId,
       user_id: userId,
       status: result.success ? 'sent' : 'failed',

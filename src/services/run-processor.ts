@@ -371,7 +371,10 @@ class RunProcessor {
             message: messageWithReplacements,
             messageIndex: i, // Track message order
           },
-          opts: delayMs > 0 ? { delay: delayMs } : undefined,
+          opts: {
+            delay: delayMs > 0 ? delayMs : undefined,
+            priority: 100, // Low priority for bulk campaigns
+          },
         });
       }
     }
