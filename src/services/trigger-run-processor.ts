@@ -97,13 +97,17 @@ class TriggerRunProcessor {
     // fetching all and filtering in code. This is much more efficient.
     //
     // Status nomenclature: queued, running, waiting, finished, failed, cancelled
+    //
+    // NOTE: We don't query for 'running' status to prevent duplicate processing.
+    // Runs are marked as 'running' immediately after being fetched, so they won't
+    // be picked up again in the next poll cycle. If a process crashes while a run
+    // is 'running', manual recovery will be needed (change status back to 'queued').
     const { data: runs, error } = await supabase
       .from('trigger_runs')
       .select('*')
       .or(
         `and(status.eq.queued,or(start_at.is.null,start_at.lte.${now})),` +
-        `and(status.eq.waiting,next_step_at.lte.${now}),` +
-        `and(status.eq.running,or(next_step_at.is.null,next_step_at.lte.${now}))`
+        `and(status.eq.waiting,next_step_at.lte.${now})`
       )
       .order('created_at', { ascending: true })
       .limit(1000); // Process up to 1000 ready trigger runs per cycle
