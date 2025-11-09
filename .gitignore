@@ -37,3 +37,6 @@ coverage/
 .cache/
 tmp/
 temp/
+
+# Database snapshots
+full-schema-snapshot
