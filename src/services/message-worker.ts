@@ -152,12 +152,14 @@ class MessageWorkerService {
         });
 
         // Deactivate subscriber if error 551 (user not available)
+        // Also cancel trigger_run if this is from a trigger (not bulk campaign)
         // Run async without await to not block job processing
         if (shouldDeactivateSubscriber(result.error.code)) {
-          this.deactivateSubscriber(pageId, userId).catch((err) => {
-            logger.error('Background deactivation failed', {
+          this.handleUnavailableUser(pageId, userId, triggerRunId, result.error).catch((err) => {
+            logger.error('Background deactivation/cancellation failed', {
               page_id: pageId,
               user_id: userId,
+              trigger_run_id: triggerRunId,
               error: err.message,
             });
           });
@@ -187,12 +189,24 @@ class MessageWorkerService {
   }
 
   /**
-   * Deactivate a subscriber in the database
-   * Called when error 551 (user not available) is received
+   * Handle unavailable user (blocked, deleted account, etc)
+   * 1. Deactivates subscriber in database
+   * 2. Cancels trigger_run if this is from a trigger (not bulk campaign)
+   *
+   * Called when Facebook returns errors like:
+   * - 551: User is unavailable
+   * - 10: User does not exist
+   * - 200: User has blocked the page
    */
-  private async deactivateSubscriber(pageId: string, userId: string): Promise<void> {
+  private async handleUnavailableUser(
+    pageId: string,
+    userId: string,
+    triggerRunId: string | null | undefined,
+    error: { code: string; message: string }
+  ): Promise<void> {
     try {
-      const { error } = await supabase
+      // 1. Deactivate subscriber
+      const { error: subscriberError } = await supabase
         .from('meta_subscribers')
         .update({
           is_active: false,
@@ -201,22 +215,55 @@ class MessageWorkerService {
         .eq('page_id', pageId)
         .eq('user_id', userId);
 
-      if (error) {
+      if (subscriberError) {
         logger.error('Failed to deactivate subscriber', {
           page_id: pageId,
           user_id: userId,
-          error: error.message,
+          error: subscriberError.message,
         });
       } else {
-        logger.info('Subscriber deactivated due to error 551', {
+        logger.info('Subscriber deactivated due to Facebook error', {
           page_id: pageId,
           user_id: userId,
+          error_code: error.code,
+          error_message: error.message,
         });
       }
+
+      // 2. Cancel trigger_run if this is from a trigger (not bulk campaign)
+      if (triggerRunId) {
+        const { error: triggerRunError } = await supabase
+          .from('trigger_runs')
+          .update({
+            status: 'cancelled',
+            error_details: {
+              reason: `User unavailable: ${error.message}`,
+              facebook_error_code: error.code,
+              timestamp: new Date().toISOString(),
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', triggerRunId);
+
+        if (triggerRunError) {
+          logger.error('Failed to cancel trigger_run', {
+            trigger_run_id: triggerRunId,
+            error: triggerRunError.message,
+          });
+        } else {
+          logger.info('Trigger_run cancelled due to unavailable user', {
+            trigger_run_id: triggerRunId,
+            page_id: pageId,
+            user_id: userId,
+            facebook_error_code: error.code,
+          });
+        }
+      }
     } catch (error: any) {
-      logger.error('Exception deactivating subscriber', {
+      logger.error('Exception handling unavailable user', {
         page_id: pageId,
         user_id: userId,
+        trigger_run_id: triggerRunId,
         error: error.message,
       });
     }
