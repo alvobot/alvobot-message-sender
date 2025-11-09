@@ -181,11 +181,12 @@ class MessageWorkerService {
 
       // Block page if error 613 (rate limit) or 2022 (temporary block)
       // Run async without await to not block job processing
-      if (['613', '2022'].includes(result.error.code)) {
+      if (result.error && ['613', '2022'].includes(result.error.code)) {
+        const errorCode = result.error.code;
         this.blockPage(pageId, result.error.code, result.error.message).catch((err) => {
           logger.error('Background page blocking failed', {
             page_id: pageId,
-            error_code: result.error.code,
+            error_code: errorCode,
             error: err.message,
           });
         });
