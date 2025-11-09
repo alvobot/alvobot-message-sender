@@ -235,6 +235,7 @@ function buildMetaMessage(node: FlowNode): any {
           type: 'template',
           payload: {
             template_type: 'generic',
+            image_aspect_ratio: node.data.imageAspectRatio || 'square',
             elements: [element],
           },
         },
