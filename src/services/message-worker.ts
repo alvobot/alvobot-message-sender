@@ -178,6 +178,18 @@ class MessageWorkerService {
         });
         throw new Error(`Facebook API error: ${result.error.code} - ${result.error.message}`);
       }
+
+      // Block page if error 613 (rate limit) or 2022 (temporary block)
+      // Run async without await to not block job processing
+      if (['613', '2022'].includes(result.error.code)) {
+        this.blockPage(pageId, result.error.code, result.error.message).catch((err) => {
+          logger.error('Background page blocking failed', {
+            page_id: pageId,
+            error_code: result.error.code,
+            error: err.message,
+          });
+        });
+      }
     } else if (result.success) {
       // Record circuit breaker success
       circuitBreaker.recordSuccess(pageId);
@@ -188,6 +200,75 @@ class MessageWorkerService {
     await logBatchWriter.add(logEntry);
 
     return result;
+  }
+
+  /**
+   * Parse block duration from Facebook error message
+   * Examples:
+   * - "You're restricted from messaging for 24 hours"
+   * - "temporarily blocked for 3 days"
+   *
+   * Returns duration in milliseconds, defaults to 12 hours if parsing fails
+   */
+  private parseBlockDuration(errorMessage: string): number {
+    const patterns = [
+      { regex: /(\d+)\s*hour/i, multiplier: 60 * 60 * 1000 },
+      { regex: /(\d+)\s*day/i, multiplier: 24 * 60 * 60 * 1000 },
+      { regex: /(\d+)\s*minute/i, multiplier: 60 * 1000 },
+    ];
+
+    for (const { regex, multiplier } of patterns) {
+      const match = errorMessage.match(regex);
+      if (match) {
+        const value = parseInt(match[1]);
+        return value * multiplier;
+      }
+    }
+
+    // Fallback: 12 hours
+    return 12 * 60 * 60 * 1000;
+  }
+
+  /**
+   * Block page due to Facebook restrictions
+   * - Error 613 (rate limit): Fixed 15-minute block
+   * - Error 2022 (temporary block): Parse duration or 12h default
+   */
+  private async blockPage(
+    pageId: string,
+    errorCode: string,
+    errorMessage: string
+  ): Promise<void> {
+    let blockDurationMs: number;
+
+    if (errorCode === '613') {
+      // Rate limit: 15 minutes fixed
+      blockDurationMs = 15 * 60 * 1000;
+    } else if (errorCode === '2022') {
+      // Temporary block: parse or 12h default
+      blockDurationMs = this.parseBlockDuration(errorMessage);
+    } else {
+      return; // Don't block for other errors
+    }
+
+    const blockedUntil = new Date(Date.now() + blockDurationMs);
+
+    await supabase
+      .from('meta_pages')
+      .update({
+        blocked_until: blockedUntil.toISOString(),
+        block_reason: errorMessage,
+        last_error_code: errorCode,
+        last_error_at: new Date().toISOString(),
+      })
+      .eq('page_id', pageId);
+
+    logger.warn('⏸️  Page blocked due to Facebook restrictions', {
+      page_id: pageId,
+      error_code: errorCode,
+      blocked_until: blockedUntil.toISOString(),
+      duration_minutes: Math.round(blockDurationMs / 60000),
+    });
   }
 
   /**

@@ -271,25 +271,35 @@ class RunProcessor {
     flow: MessageFlow,
     messages: any[]
   ) {
-    // Fetch page data (cast page_id to text to preserve precision of large IDs)
-    const { data: page, error: pageError } = await supabase
+    // Fetch page data with user_id filter and blocking check
+    const now = new Date().toISOString();
+    const { data: pages, error: pageError } = await supabase
       .from('meta_pages')
-      .select('page_id::text, page_name, access_token, is_active, user_id, connection_id, created_at, updated_at')
+      .select('page_id::text, page_name, access_token, is_active, owner_user_id, connection_id, created_at, updated_at')
       .eq('page_id', pageId)
-      .single();
+      .eq('owner_user_id', run.user_id)
+      .eq('is_active', true)
+      .or(`blocked_until.is.null,blocked_until.lt.${now}`);
 
-    if (pageError || !page) {
+    if (pageError) {
       logger.error('Failed to fetch page', {
         page_id: pageId,
-        error: pageError?.message,
+        user_id: run.user_id,
+        error: pageError.message,
       });
       return;
     }
 
-    if (!page.is_active) {
-      logger.warn('Page is inactive, skipping', { page_id: pageId });
+    if (!pages || pages.length === 0) {
+      logger.warn('No active/unblocked page connection found, skipping', {
+        page_id: pageId,
+        user_id: run.user_id,
+      });
       return;
     }
+
+    // Use first available page
+    const page = pages[0];
 
     // Fetch ALL active subscribers for this page (with pagination to handle large lists)
     // Supabase has a default limit of 1000 rows, so we need to paginate

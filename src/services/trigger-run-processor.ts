@@ -26,6 +26,7 @@ interface TriggerRun {
   trigger_context: any;
   message_dispatches: any[];
   error_details: any;
+  owner_user_id: string;
 }
 
 class TriggerRunProcessor {
@@ -191,22 +192,25 @@ class TriggerRunProcessor {
       throw new Error('Trigger run missing flow_id');
     }
 
-    // Fetch page data
-    const { data: page, error: pageError } = await supabase
+    // Fetch page data with user_id filter and blocking check
+    const now = new Date().toISOString();
+    const { data: pages, error: pageError } = await supabase
       .from('meta_pages')
       .select('page_id::text, access_token, is_active')
       .eq('page_id', run.page_id)
-      .single();
+      .eq('owner_user_id', run.owner_user_id)
+      .eq('is_active', true)
+      .or(`blocked_until.is.null,blocked_until.lt.${now}`);
 
-    if (pageError || !page) {
-      throw new Error(`Failed to fetch page ${run.page_id}: ${pageError?.message}`);
+    if (pageError) {
+      throw new Error(`Failed to fetch page ${run.page_id}: ${pageError.message}`);
     }
 
-    // Skip if page is inactive
-    if (!page.is_active) {
-      logger.warn('Page is inactive, cancelling trigger run', {
+    if (!pages || pages.length === 0) {
+      logger.warn('No active/unblocked page connection found, cancelling trigger run', {
         trigger_run_id: run.id,
         page_id: run.page_id,
+        owner_user_id: run.owner_user_id,
       });
 
       // Mark as cancelled (not failed - this is a business rule, not an error)
@@ -215,7 +219,7 @@ class TriggerRunProcessor {
         .update({
           status: 'cancelled',
           error_details: {
-            reason: 'Page is inactive',
+            reason: 'No active page connection found or page is blocked',
             timestamp: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
@@ -224,6 +228,9 @@ class TriggerRunProcessor {
 
       return;
     }
+
+    // Use first available page
+    const page = pages[0];
 
     // NOTE: We don't validate subscriber status here (was removed for performance).
     // Instead, we let Facebook API tell us if the user is unavailable/blocked.
