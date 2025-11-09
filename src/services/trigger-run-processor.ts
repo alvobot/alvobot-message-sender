@@ -96,7 +96,7 @@ class TriggerRunProcessor {
     // OPTIMIZATION: Filter by time conditions directly in SQL query instead of
     // fetching all and filtering in code. This is much more efficient.
     //
-    // Status nomenclature: queued, running, waiting, finished, failed
+    // Status nomenclature: queued, running, waiting, finished, failed, cancelled
     const { data: runs, error } = await supabase
       .from('trigger_runs')
       .select('*')
@@ -200,18 +200,18 @@ class TriggerRunProcessor {
 
     // Skip if page is inactive
     if (!page.is_active) {
-      logger.warn('Page is inactive, skipping trigger run', {
+      logger.warn('Page is inactive, cancelling trigger run', {
         trigger_run_id: run.id,
         page_id: run.page_id,
       });
 
-      // Mark as failed
+      // Mark as cancelled (not failed - this is a business rule, not an error)
       await supabase
         .from('trigger_runs')
         .update({
-          status: 'failed',
+          status: 'cancelled',
           error_details: {
-            message: 'Page is inactive',
+            reason: 'Page is inactive',
             timestamp: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
@@ -230,20 +230,20 @@ class TriggerRunProcessor {
       .single();
 
     if (subscriberError || !subscriber) {
-      logger.warn('Subscriber not found, skipping trigger run', {
+      logger.warn('Subscriber not found, cancelling trigger run', {
         trigger_run_id: run.id,
         page_id: run.page_id,
         recipient_user_id: run.recipient_user_id,
         error: subscriberError?.message,
       });
 
-      // Mark as failed
+      // Mark as cancelled (subscriber doesn't exist = can't send)
       await supabase
         .from('trigger_runs')
         .update({
-          status: 'failed',
+          status: 'cancelled',
           error_details: {
-            message: 'Subscriber not found',
+            reason: 'Subscriber not found',
             timestamp: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
@@ -255,19 +255,19 @@ class TriggerRunProcessor {
 
     // Skip if subscriber is not active (blocked/unsubscribed)
     if (!subscriber.is_active) {
-      logger.warn('Subscriber is not active, skipping trigger run', {
+      logger.warn('Subscriber is not active, cancelling trigger run', {
         trigger_run_id: run.id,
         page_id: run.page_id,
         recipient_user_id: run.recipient_user_id,
       });
 
-      // Mark as failed
+      // Mark as cancelled (subscriber blocked/unsubscribed = can't send)
       await supabase
         .from('trigger_runs')
         .update({
-          status: 'failed',
+          status: 'cancelled',
           error_details: {
-            message: 'Subscriber is not active (blocked/unsubscribed)',
+            reason: 'Subscriber is not active (blocked/unsubscribed)',
             timestamp: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
