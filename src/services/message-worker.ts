@@ -155,7 +155,9 @@ class MessageWorkerService {
         // Also cancel trigger_run if this is from a trigger (not bulk campaign)
         // Run async without await to not block job processing
         if (shouldDeactivateSubscriber(result.error.code)) {
-          this.handleUnavailableUser(pageId, userId, triggerRunId, result.error).catch((err) => {
+          // Convert triggerRunId to string (it comes as number from queue)
+          const triggerRunIdStr = triggerRunId ? String(triggerRunId) : null;
+          this.handleUnavailableUser(pageId, userId, triggerRunIdStr, result.error).catch((err) => {
             logger.error('Background deactivation/cancellation failed', {
               page_id: pageId,
               user_id: userId,
