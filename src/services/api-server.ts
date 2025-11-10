@@ -666,11 +666,11 @@ class ApiServer {
         // 3. Parse page_ids
         let pageIds: string[] = [];
         if (Array.isArray(run.page_ids)) {
-          pageIds = run.page_ids.map((id) => String(id));
+          pageIds = run.page_ids.map((id: any) => String(id));
         } else if (typeof run.page_ids === 'string') {
           try {
             const parsed = JSON.parse(run.page_ids);
-            pageIds = Array.isArray(parsed) ? parsed.map((id) => String(id)) : [String(parsed)];
+            pageIds = Array.isArray(parsed) ? parsed.map((id: any) => String(id)) : [String(parsed)];
           } catch {
             pageIds = [String(run.page_ids)];
           }
@@ -720,9 +720,9 @@ class ApiServer {
         if (blockedPages.length > 0) {
           result.blocked_pages = blockedPages.map(p => ({
             page_id: p.page_id,
-            blocked_until: p.page_details.blocked_until,
-            block_reason: p.page_details.block_reason,
-            last_error_code: p.page_details.last_error_code,
+            blocked_until: p.page_details?.blocked_until,
+            block_reason: p.page_details?.block_reason,
+            last_error_code: p.page_details?.last_error_code,
           }));
         }
 
