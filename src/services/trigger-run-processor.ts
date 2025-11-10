@@ -198,7 +198,7 @@ class TriggerRunProcessor {
       .from('meta_pages')
       .select('page_id::text, access_token, is_active')
       .eq('page_id', run.page_id)
-      .eq('owner_user_id', run.owner_user_id)
+      .eq('user_id', run.owner_user_id)
       .eq('is_active', true)
       .or(`blocked_until.is.null,blocked_until.lt.${now}`);
 

@@ -275,9 +275,9 @@ class RunProcessor {
     const now = new Date().toISOString();
     const { data: pages, error: pageError } = await supabase
       .from('meta_pages')
-      .select('page_id::text, page_name, access_token, is_active, owner_user_id, connection_id, created_at, updated_at')
+      .select('page_id::text, page_name, access_token, is_active, user_id, connection_id, created_at, updated_at')
       .eq('page_id', pageId)
-      .eq('owner_user_id', run.user_id)
+      .eq('user_id', run.user_id)
       .eq('is_active', true)
       .or(`blocked_until.is.null,blocked_until.lt.${now}`);
 

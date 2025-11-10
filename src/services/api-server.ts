@@ -683,35 +683,35 @@ class ApiServer {
         for (const pageId of pageIds.slice(0, 5)) { // Limit to first 5 to avoid timeout
           const { data: pages } = await supabase
             .from('meta_pages')
-            .select('page_id::text, page_name, owner_user_id, is_active, blocked_until, block_reason, last_error_code')
+            .select('page_id::text, page_name, user_id, is_active, blocked_until, block_reason, last_error_code')
             .eq('page_id', pageId);
 
           if (!pages || pages.length === 0) {
             pagesCheck.push({ page_id: pageId, found: false });
           } else {
-            const matchingOwner = pages.find(p => p.owner_user_id === run.user_id);
+            const matchingOwner = pages.find(p => p.user_id === run.user_id);
             pagesCheck.push({
               page_id: pageId,
               found: true,
               total_connections: pages.length,
               matching_owner: !!matchingOwner,
               page_details: matchingOwner || pages[0],
-              all_owners: pages.map(p => p.owner_user_id),
+              all_owners: pages.map(p => p.user_id),
             });
           }
         }
 
         result.pages_check = pagesCheck;
 
-        // 5. Check for owner_user_id mismatch
+        // 5. Check for user_id mismatch
         const mismatchedPages = pagesCheck.filter(p => p.found && !p.matching_owner);
         if (mismatchedPages.length > 0) {
           result.diagnosis = {
-            issue: 'owner_user_id_mismatch',
+            issue: 'user_id_mismatch',
             severity: 'high',
-            description: `Run has user_id ${run.user_id} but ${mismatchedPages.length} pages don't have matching owner_user_id`,
+            description: `Run has user_id ${run.user_id} but ${mismatchedPages.length} pages don't have matching user_id`,
             affected_pages: mismatchedPages.map(p => p.page_id),
-            fix_sql: `UPDATE meta_pages SET owner_user_id = '${run.user_id}' WHERE page_id IN (${mismatchedPages.map(p => p.page_id).join(', ')});`,
+            fix_sql: `UPDATE meta_pages SET user_id = '${run.user_id}' WHERE page_id IN (${mismatchedPages.map(p => p.page_id).join(', ')});`,
           };
         }
 
