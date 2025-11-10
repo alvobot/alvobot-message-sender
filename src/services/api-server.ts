@@ -616,6 +616,152 @@ class ApiServer {
       }
     });
 
+    // Debug: Investigate a message_run
+    this.app.get('/debug/run/:runId', async (req: Request, res: Response) => {
+      try {
+        const runId = parseInt(req.params.runId);
+        if (isNaN(runId)) {
+          return res.status(400).json({ error: 'Invalid run_id' });
+        }
+
+        const result: any = { run_id: runId, timestamp: new Date().toISOString() };
+
+        // 1. Get run details
+        const { data: run, error: runError } = await supabase
+          .from('message_runs')
+          .select('*')
+          .eq('id', runId)
+          .single();
+
+        if (runError || !run) {
+          return res.status(404).json({ error: 'Run not found', details: runError?.message });
+        }
+
+        result.run = {
+          status: run.status,
+          flow_id: run.flow_id,
+          page_ids: run.page_ids,
+          user_id: run.user_id,
+          created_at: run.created_at,
+          start_at: run.start_at,
+          completed_at: run.completed_at,
+          next_step_id: run.next_step_id,
+          next_step_at: run.next_step_at,
+          last_step_id: run.last_step_id,
+          error_summary: run.error_summary,
+        };
+
+        // 2. Check logs count
+        try {
+          const { default: pool } = await import('../database/postgres');
+          const logsCount = await pool.query(
+            'SELECT COUNT(*) as total, status FROM message_logs.message_logs WHERE run_id = $1 GROUP BY status',
+            [runId]
+          );
+          result.logs = logsCount.rows;
+        } catch (err: any) {
+          result.logs = { error: err.message };
+        }
+
+        // 3. Parse page_ids
+        let pageIds: string[] = [];
+        if (Array.isArray(run.page_ids)) {
+          pageIds = run.page_ids.map((id) => String(id));
+        } else if (typeof run.page_ids === 'string') {
+          try {
+            const parsed = JSON.parse(run.page_ids);
+            pageIds = Array.isArray(parsed) ? parsed.map((id) => String(id)) : [String(parsed)];
+          } catch {
+            pageIds = [String(run.page_ids)];
+          }
+        }
+
+        result.page_ids_parsed = pageIds;
+
+        // 4. Check pages existence and ownership
+        const pagesCheck = [];
+        for (const pageId of pageIds.slice(0, 5)) { // Limit to first 5 to avoid timeout
+          const { data: pages } = await supabase
+            .from('meta_pages')
+            .select('page_id::text, page_name, owner_user_id, is_active, blocked_until, block_reason, last_error_code')
+            .eq('page_id', pageId);
+
+          if (!pages || pages.length === 0) {
+            pagesCheck.push({ page_id: pageId, found: false });
+          } else {
+            const matchingOwner = pages.find(p => p.owner_user_id === run.user_id);
+            pagesCheck.push({
+              page_id: pageId,
+              found: true,
+              total_connections: pages.length,
+              matching_owner: !!matchingOwner,
+              page_details: matchingOwner || pages[0],
+              all_owners: pages.map(p => p.owner_user_id),
+            });
+          }
+        }
+
+        result.pages_check = pagesCheck;
+
+        // 5. Check for owner_user_id mismatch
+        const mismatchedPages = pagesCheck.filter(p => p.found && !p.matching_owner);
+        if (mismatchedPages.length > 0) {
+          result.diagnosis = {
+            issue: 'owner_user_id_mismatch',
+            severity: 'high',
+            description: `Run has user_id ${run.user_id} but ${mismatchedPages.length} pages don't have matching owner_user_id`,
+            affected_pages: mismatchedPages.map(p => p.page_id),
+            fix_sql: `UPDATE meta_pages SET owner_user_id = '${run.user_id}' WHERE page_id IN (${mismatchedPages.map(p => p.page_id).join(', ')});`,
+          };
+        }
+
+        // 6. Check for blocked pages
+        const blockedPages = pagesCheck.filter(p => p.page_details?.blocked_until && new Date(p.page_details.blocked_until) > new Date());
+        if (blockedPages.length > 0) {
+          result.blocked_pages = blockedPages.map(p => ({
+            page_id: p.page_id,
+            blocked_until: p.page_details.blocked_until,
+            block_reason: p.page_details.block_reason,
+            last_error_code: p.page_details.last_error_code,
+          }));
+        }
+
+        // 7. Check subscribers count (first page only)
+        if (pageIds.length > 0) {
+          const { count } = await supabase
+            .from('meta_subscribers')
+            .select('*', { count: 'exact', head: true })
+            .eq('page_id', pageIds[0])
+            .eq('is_active', true);
+
+          result.subscribers_sample = {
+            page_id: pageIds[0],
+            active_count: count || 0,
+          };
+        }
+
+        // 8. Flow info
+        const { data: flow } = await supabase
+          .from('message_flows')
+          .select('id, name, flow')
+          .eq('id', run.flow_id)
+          .single();
+
+        if (flow) {
+          result.flow = {
+            id: flow.id,
+            name: flow.name,
+            nodes_count: flow.flow?.nodes?.length || 0,
+            connections_count: flow.flow?.connections?.length || 0,
+          };
+        }
+
+        return res.json(result);
+      } catch (error: any) {
+        return res.status(500).json({ error: error.message, stack: error.stack });
+      }
+    });
+
     // Reset circuit breaker for a page
     this.app.post('/circuit-breaker/reset/:pageId', (req: Request, res: Response) => {
       const pageId = req.params.pageId; // Keep as string for large Facebook page IDs
