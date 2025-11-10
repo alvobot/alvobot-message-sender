@@ -105,7 +105,7 @@ class TriggerRunProcessor {
     // is 'running', manual recovery will be needed (change status back to 'queued').
     const { data: runs, error } = await supabase
       .from('trigger_runs')
-      .select('*')
+      .select('*, recipient_user_id::text')
       .or(
         `and(status.eq.queued,or(start_at.is.null,start_at.lte.${now})),` +
         `and(status.eq.waiting,next_step_at.lte.${now})`

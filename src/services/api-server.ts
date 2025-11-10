@@ -683,7 +683,7 @@ class ApiServer {
         for (const pageId of pageIds.slice(0, 5)) { // Limit to first 5 to avoid timeout
           const { data: pages } = await supabase
             .from('meta_pages')
-            .select('page_id::text, page_name, user_id, is_active, blocked_until, block_reason, last_error_code')
+            .select('page_id::text, page_name, user_id::text, is_active, blocked_until, block_reason, last_error_code')
             .eq('page_id', pageId);
 
           if (!pages || pages.length === 0) {
