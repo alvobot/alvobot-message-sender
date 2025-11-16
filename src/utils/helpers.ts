@@ -97,6 +97,16 @@ export function shouldDeactivateSubscriber(errorCode: string): boolean {
 }
 
 /**
+ * Check if error code indicates messaging window has expired
+ * These errors suggest the 24-hour messaging window is closed
+ * and a MESSAGE_TAG is required instead of RESPONSE
+ */
+export function isMessagingWindowError(errorCode: string): boolean {
+  const windowErrors = ['10', '200', '190', '368'];
+  return windowErrors.includes(errorCode);
+}
+
+/**
  * Format bytes to human-readable string
  */
 export function formatBytes(bytes: number, decimals: number = 2): string {

@@ -393,7 +393,7 @@ class RunProcessor {
     while (hasMore) {
       const { data, error } = await supabase
         .from('meta_subscribers')
-        .select('page_id::text, user_id::text')
+        .select('page_id::text, user_id::text, window_expires_at')
         .eq('page_id', pageId)
         .eq('is_active', true)
         .range(pageNumber * pageSize, (pageNumber + 1) * pageSize - 1);
@@ -449,6 +449,12 @@ class RunProcessor {
       // IDs already come as strings from ::text cast
       const userIdStr = subscriber.user_id;
 
+      // Check if subscriber is within 24-hour messaging window
+      const windowExpiresAt = subscriber.window_expires_at;
+      const hasMessagingWindow = windowExpiresAt
+        ? new Date(windowExpiresAt) > new Date()
+        : false;
+
       for (let i = 0; i < messages.length; i++) {
         const message = messages[i];
 
@@ -459,6 +465,17 @@ class RunProcessor {
           messageWithReplacements,
           { USER_ID: userIdStr }
         );
+
+        // Optimize message based on messaging window
+        // If within 24h window, use RESPONSE (no tag required)
+        // Otherwise, keep MESSAGE_TAG with tag
+        if (hasMessagingWindow) {
+          messageWithReplacements.messaging_type = 'RESPONSE';
+          // Remove tag if present (RESPONSE doesn't need tag)
+          if (messageWithReplacements.tag) {
+            delete messageWithReplacements.tag;
+          }
+        }
 
         // Calculate delay: each message after the first gets delayed
         // Message 0: no delay, Message 1: 2s delay, Message 2: 4s delay, etc.
@@ -475,6 +492,8 @@ class RunProcessor {
             pageAccessToken: page.access_token,
             message: messageWithReplacements,
             messageIndex: i, // Track message order
+            windowExpiresAt: windowExpiresAt,
+            hasMessagingWindow: hasMessagingWindow,
           },
           opts: {
             delay: delayMs > 0 ? delayMs : undefined,

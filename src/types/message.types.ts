@@ -9,6 +9,9 @@ export interface QueueMessagePayload {
   userId: string;
   pageAccessToken: string;
   message: FacebookMessage;
+  messageIndex?: number;
+  windowExpiresAt?: string; // ISO timestamp when 24-hour messaging window expires
+  hasMessagingWindow?: boolean; // True if user is within 24-hour window
 }
 
 export interface FacebookMessage {

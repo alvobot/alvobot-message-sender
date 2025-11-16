@@ -10,7 +10,13 @@ import logBatchWriter from '../database/log-batch-writer';
 import logger from '../utils/logger';
 import env from '../config/env';
 import { QueueMessagePayload, MessageLog } from '../types';
-import { isRateLimitError, isPermanentError, isAuthError, shouldDeactivateSubscriber } from '../utils/helpers';
+import {
+  isRateLimitError,
+  isPermanentError,
+  isAuthError,
+  shouldDeactivateSubscriber,
+  isMessagingWindowError,
+} from '../utils/helpers';
 import { supabase } from '../database/supabase';
 
 class MessageWorkerService {
@@ -82,7 +88,8 @@ class MessageWorkerService {
   }
 
   private async processJob(job: Job<QueueMessagePayload>) {
-    const { runId, triggerRunId, pageId, userId, pageAccessToken, message } = job.data;
+    const { runId, triggerRunId, pageId, userId, pageAccessToken, message, hasMessagingWindow, windowExpiresAt } =
+      job.data;
 
     // Check circuit breaker
     if (circuitBreaker.isCircuitOpen(pageId)) {
@@ -110,7 +117,47 @@ class MessageWorkerService {
     }
 
     // Send message via Facebook API
-    const result = await facebookClient.sendMessage(pageAccessToken, userId, message);
+    let result = await facebookClient.sendMessage(pageAccessToken, userId, message);
+
+    // FALLBACK: If RESPONSE failed with window-related errors, retry with MESSAGE_TAG
+    if (result.error && hasMessagingWindow) {
+      const errorCode = result.error.code;
+
+      // Errors that indicate messaging window has expired or permission issues
+      if (isMessagingWindowError(errorCode)) {
+        logger.warn('RESPONSE failed, retrying with MESSAGE_TAG fallback', {
+          job_id: job.id,
+          user_id: userId,
+          page_id: pageId,
+          error_code: errorCode,
+          error_message: result.error.message,
+          original_messaging_type: 'RESPONSE',
+          window_expires_at: windowExpiresAt,
+        });
+
+        // Modify message to use MESSAGE_TAG
+        const messageWithTag = {
+          ...message,
+          messaging_type: 'MESSAGE_TAG',
+          tag: 'ACCOUNT_UPDATE',
+        };
+
+        // Retry with tag
+        const retryResult = await facebookClient.sendMessage(pageAccessToken, userId, messageWithTag);
+
+        logger.info('MESSAGE_TAG fallback retry completed', {
+          job_id: job.id,
+          user_id: userId,
+          page_id: pageId,
+          success: retryResult.success,
+          message_id: retryResult.messageId,
+          error: retryResult.error,
+        });
+
+        // Replace original result with retry result
+        result = retryResult;
+      }
+    }
 
     // Create log entry
     const logEntry: MessageLog = {

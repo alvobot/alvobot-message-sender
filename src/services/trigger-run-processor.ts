@@ -232,7 +232,28 @@ class TriggerRunProcessor {
     // Use first available page
     const page = pages[0];
 
-    // NOTE: We don't validate subscriber status here (was removed for performance).
+    // Fetch subscriber to check messaging window
+    // This allows us to use RESPONSE (no tag) if within 24-hour window
+    const { data: subscriberData } = await supabase
+      .from('meta_subscribers')
+      .select('window_expires_at')
+      .eq('page_id', run.page_id)
+      .eq('user_id', run.recipient_user_id)
+      .single();
+
+    const windowExpiresAt = subscriberData?.window_expires_at || null;
+    const hasMessagingWindow = windowExpiresAt
+      ? new Date(windowExpiresAt) > new Date()
+      : false;
+
+    logger.debug('Subscriber messaging window status', {
+      trigger_run_id: run.id,
+      recipient_user_id: run.recipient_user_id,
+      window_expires_at: windowExpiresAt,
+      has_messaging_window: hasMessagingWindow,
+    });
+
+    // NOTE: We don't validate subscriber.is_active here (was removed for performance).
     // Instead, we let Facebook API tell us if the user is unavailable/blocked.
     // The message-worker will handle Facebook errors and update subscriber.is_active
     // and trigger_run status accordingly. This saves 1000s of SELECT queries per cycle.
@@ -319,7 +340,7 @@ class TriggerRunProcessor {
     }
 
     // Enqueue jobs for the single recipient
-    await this.enqueueJobsForTrigger(run, page, flowData, messages);
+    await this.enqueueJobsForTrigger(run, page, flowData, messages, windowExpiresAt, hasMessagingWindow);
 
     // Update run status based on flow result
     let newStatus = 'running';
@@ -375,7 +396,9 @@ class TriggerRunProcessor {
     run: TriggerRun,
     page: any,
     flow: any,
-    messages: any[]
+    messages: any[],
+    windowExpiresAt: string | null,
+    hasMessagingWindow: boolean
   ) {
     if (messages.length === 0) {
       logger.warn('No messages to send for trigger run', {
@@ -400,6 +423,17 @@ class TriggerRunProcessor {
         { USER_ID: userId }
       );
 
+      // Optimize message based on messaging window
+      // If within 24h window, use RESPONSE (no tag required)
+      // Otherwise, keep MESSAGE_TAG with tag
+      if (hasMessagingWindow) {
+        messageWithReplacements.messaging_type = 'RESPONSE';
+        // Remove tag if present (RESPONSE doesn't need tag)
+        if (messageWithReplacements.tag) {
+          delete messageWithReplacements.tag;
+        }
+      }
+
       // Calculate delay: each message after the first gets delayed
       // Message 0: no delay, Message 1: 2s delay, Message 2: 4s delay, etc.
       const delayMs = i * MESSAGE_DELAY_MS;
@@ -415,6 +449,8 @@ class TriggerRunProcessor {
           pageAccessToken: page.access_token,
           message: messageWithReplacements,
           messageIndex: i, // Track message order
+          windowExpiresAt: windowExpiresAt,
+          hasMessagingWindow: hasMessagingWindow,
         },
         opts: {
           delay: delayMs > 0 ? delayMs : undefined,
