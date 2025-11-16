@@ -2,9 +2,14 @@
 
 export interface FlowNode {
   id: string;
-  type: 'start' | 'text' | 'card' | 'wait' | 'traffic' | 'end';
+  type: 'start' | 'text' | 'card' | 'wait' | 'traffic' | 'call-flow' | 'end';
   data: Record<string, any>;
   position?: { x: number; y: number };
+}
+
+export interface CallFlowNodeData {
+  label: string;
+  selectedFlowId: string;
 }
 
 export interface FlowConnection {

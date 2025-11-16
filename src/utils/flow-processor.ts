@@ -8,6 +8,7 @@ export interface FlowProcessingResult {
   nextStepAt: string | null;
   lastStepId: string | null;
   isComplete: boolean;
+  callFlowId?: string; // Indicates that a child run should be created with this flow
 }
 
 /**
@@ -93,6 +94,32 @@ export function assembleMessages(
           continue;
         }
         break;
+
+      case 'call-flow':
+        // Call-flow node - create child run and mark parent as complete (terminal)
+        const callFlowId = currentNode.data.selectedFlowId;
+        if (!callFlowId) {
+          logger.error('Call-flow node missing selectedFlowId', {
+            node_id: currentNode.id,
+          });
+          throw new Error('Call-flow node must have selectedFlowId');
+        }
+
+        logger.debug('Call-flow node encountered', {
+          node_id: currentNode.id,
+          call_flow_id: callFlowId,
+          messages_accumulated: messages.length,
+        });
+
+        // Return accumulated messages and signal child run creation
+        return {
+          messages,
+          nextStepId: null,
+          nextStepAt: null,
+          lastStepId: currentNode.id,
+          isComplete: true, // call-flow is terminal
+          callFlowId: callFlowId,
+        };
 
       case 'end':
         // End node - mark as complete

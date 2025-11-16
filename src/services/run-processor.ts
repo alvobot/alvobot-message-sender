@@ -195,7 +195,48 @@ class RunProcessor {
       next_step_id: result.nextStepId,
       next_step_at: result.nextStepAt,
       last_step_id: result.lastStepId,
+      call_flow_id: result.callFlowId,
     });
+
+    // Handle call-flow node: create child message_run
+    if (result.callFlowId) {
+      logger.info(`Creating child message_run from call-flow node`, {
+        parent_run_id: run.id,
+        child_flow_id: result.callFlowId,
+      });
+
+      const { data: childRun, error: childError } = await supabase
+        .from('message_runs')
+        .insert({
+          flow_id: result.callFlowId,
+          page_ids: run.page_ids,
+          user_id: run.user_id,
+          parent_run_id: run.id,
+          status: 'queued',
+          start_at: new Date().toISOString(),
+          next_step_id: null,
+          total_messages: 0,
+          success_count: 0,
+          failure_count: 0,
+        })
+        .select()
+        .single();
+
+      if (childError) {
+        logger.error(`Failed to create child message_run`, {
+          parent_run_id: run.id,
+          child_flow_id: result.callFlowId,
+          error: childError.message,
+        });
+        throw new Error(`Failed to create child run: ${childError.message}`);
+      }
+
+      logger.info(`Child message_run created successfully`, {
+        parent_run_id: run.id,
+        child_run_id: childRun.id,
+        child_flow_id: result.callFlowId,
+      });
+    }
 
     // Transform page_ids array
     let pageIds: string[] = [];

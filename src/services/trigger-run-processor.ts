@@ -274,7 +274,49 @@ class TriggerRunProcessor {
       next_step_id: result.nextStepId,
       next_step_at: result.nextStepAt,
       last_step_id: result.lastStepId,
+      call_flow_id: result.callFlowId,
     });
+
+    // Handle call-flow node: create child trigger_run
+    if (result.callFlowId) {
+      logger.info(`Creating child trigger_run from call-flow node`, {
+        parent_trigger_run_id: run.id,
+        child_flow_id: result.callFlowId,
+      });
+
+      const { data: childRun, error: childError } = await supabase
+        .from('trigger_runs')
+        .insert({
+          trigger_id: run.trigger_id, // SAME as parent (critical requirement)
+          flow_id: result.callFlowId,
+          owner_user_id: run.owner_user_id,
+          page_id: run.page_id,
+          recipient_user_id: run.recipient_user_id,
+          parent_trigger_run_id: run.id,
+          trigger_context: null, // Child doesn't inherit trigger_context
+          status: 'queued',
+          start_at: new Date().toISOString(),
+          next_step_id: null,
+        })
+        .select()
+        .single();
+
+      if (childError) {
+        logger.error(`Failed to create child trigger_run`, {
+          parent_trigger_run_id: run.id,
+          child_flow_id: result.callFlowId,
+          error: childError.message,
+        });
+        throw new Error(`Failed to create child trigger_run: ${childError.message}`);
+      }
+
+      logger.info(`Child trigger_run created successfully`, {
+        parent_trigger_run_id: run.id,
+        child_trigger_run_id: childRun.id,
+        child_flow_id: result.callFlowId,
+        trigger_id: run.trigger_id,
+      });
+    }
 
     // Enqueue jobs for the single recipient
     await this.enqueueJobsForTrigger(run, page, flowData, messages);
