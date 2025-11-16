@@ -205,6 +205,45 @@ class RunProcessor {
         child_flow_id: result.callFlowId,
       });
 
+      // Count active subscribers for the pages in this run
+      let activeSubscribersCount = 0;
+
+      // Parse page_ids to ensure it's an array
+      let pageIdsForCount: string[] = [];
+      if (Array.isArray(run.page_ids)) {
+        pageIdsForCount = run.page_ids.map((id) => String(id));
+      } else if (typeof run.page_ids === 'string') {
+        try {
+          const parsed = JSON.parse(run.page_ids);
+          pageIdsForCount = Array.isArray(parsed) ? parsed.map((id) => String(id)) : [String(parsed)];
+        } catch {
+          pageIdsForCount = [String(run.page_ids)];
+        }
+      }
+
+      if (pageIdsForCount.length > 0) {
+        const { count, error: countError } = await supabase
+          .from('meta_subscribers')
+          .select('*', { count: 'exact', head: true })
+          .in('page_id', pageIdsForCount)
+          .eq('is_active', true);
+
+        if (countError) {
+          logger.warn(`Failed to count active subscribers, using 0`, {
+            parent_run_id: run.id,
+            error: countError.message,
+          });
+        } else {
+          activeSubscribersCount = count || 0;
+        }
+
+        logger.debug(`Counted active subscribers for child run`, {
+          parent_run_id: run.id,
+          page_ids: pageIdsForCount,
+          active_subscribers: activeSubscribersCount,
+        });
+      }
+
       const { data: childRun, error: childError } = await supabase
         .from('message_runs')
         .insert({
@@ -218,6 +257,7 @@ class RunProcessor {
           total_messages: 0,
           success_count: 0,
           failure_count: 0,
+          active_subscribers_at_creation: activeSubscribersCount,
         })
         .select()
         .single();
@@ -235,6 +275,7 @@ class RunProcessor {
         parent_run_id: run.id,
         child_run_id: childRun.id,
         child_flow_id: result.callFlowId,
+        active_subscribers_at_creation: activeSubscribersCount,
       });
     }
 
